@@ -254,22 +254,44 @@ values_of_another_version :: proc(t: ^testing.T) {
 	testing.expect(t, fine.problem == "" && fine.player.name == "Fine", "a config read whole has nothing to say")
 }
 
-// A config with vsync's old key (F4, `toggle r_swapeffect`) has it let go, and is written
+// A config with vsync's old key (F4, `toggle r_swapeffect`) has F4 take the screenshot,
+// as it now does by default, and any other key of vsync's let go; and is written
 // so; its other binds, and vsync itself, kept.
 @(test)
 old_vsync_bind :: proc(t: ^testing.T) {
 	dir := scratch(t, "vsync")
 	defer os.remove_all(dir)
 	path := utils.temp_path(dir, "client.config.mjson")
-	write(path, "graphics: {vsync: true}\nbinds: {f4: \"toggle r_swapeffect\", g: \"say Hi!\"}\n")
+	write(path, "graphics: {vsync: true}\nbinds: {f4: \"toggle r_swapeffect\", h: \"toggle r_swapeffect\", g: \"say Hi!\"}\n")
 	config := res.client_config_load(path)
 	defer res.client_config_destroy(config)
-	_, bound := res.client_config_bind(config, "f4")
-	testing.expect(t, !bound, "f4 let go")
+	shot, _ := res.client_config_bind(config, "f4")
+	_, bound := res.client_config_bind(config, "h")
+	testing.expect_value(t, shot, "screenshot")
+	testing.expect(t, !bound, "h let go")
 	hi, _ := res.client_config_bind(config, "g")
 	testing.expect_value(t, hi, "say Hi!")
 	testing.expect(t, config.graphics.vsync, "vsync as it was")
 	testing.expect(t, !strings.contains(read(path), "r_swapeffect"), "and written so")
+}
+
+// A config with the old keys that toggled a setting, F5 (the frame rate and the line's
+// numbers) and F7 (the player names), has them let go; the same toggle on a key of the
+// player's own stays.
+@(test)
+old_setting_toggles :: proc(t: ^testing.T) {
+	dir := scratch(t, "toggles")
+	defer os.remove_all(dir)
+	path := utils.temp_path(dir, "client.config.mjson")
+	write(path, "binds: {f5: \"toggle ui_info\", f7: \"toggle ui_playernames\", k: \"toggle ui_info\"}\n")
+	config := res.client_config_load(path)
+	defer res.client_config_destroy(config)
+	_, f5 := res.client_config_bind(config, "f5")
+	_, f7 := res.client_config_bind(config, "f7")
+	own, _ := res.client_config_bind(config, "k")
+	testing.expect(t, !f5 && !f7, "f5 and f7 let go")
+	testing.expect_value(t, own, "toggle ui_info")
+	testing.expect(t, !strings.contains(read(path), "\"f5\""), "and written so")
 }
 
 // A config that still names the lobby of before is moved to the lobby now, the client's

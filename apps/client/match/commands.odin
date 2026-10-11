@@ -24,6 +24,7 @@ import "../hud"
 //   demo_pause  demo_fast  demo_tick <tick>  demo_tick_r <ticks>
 //   connect <address>  disconnect  quit
 //   netstats            a line a second of how the line is doing
+//   screenshot          the client's, in a match or out of one, taken each frame (main.odin)
 
 @(private = "file", rodata)
 COMMANDS := [?]string {
@@ -31,7 +32,7 @@ COMMANDS := [?]string {
 	"chat", "teamchat", "cmd", "say", "say_team", "votemap", "votekick", "+radio", "-radio", "radio", "emote",
 	"mute", "unmute", "muteall", "muteteam", "muteenemies", "mutespecs", "mutes", "freecam",
 	"record", "stop", "togglerecord", "playdemo", "demo_pause", "demo_fast", "demo_tick", "demo_tick_r",
-	"connect", "disconnect", "quit", "netstats",
+	"connect", "disconnect", "quit", "netstats", "screenshot",
 }
 
 // Whether the client has a command of that name, to run here rather than say.

@@ -5,6 +5,8 @@ import "core:strings"
 
 import rl "vendor:raylib"
 
+import res "../../../core/resources"
+
 // The keys by the names the binds give them, the original's: "a", "5", "f1", "space",
 // "mouse1", "mwheelup", and a modifier before one with a plus: "alt+q", "ctrl+f9".
 
@@ -59,6 +61,17 @@ key_pressed :: proc(key: Key) -> bool {
 	case rl.KeyboardKey: return rl.IsKeyPressed(k)
 	case rl.MouseButton: return rl.IsMouseButtonPressed(k)
 	case Wheel:          return wheel_turned(k)
+	}
+	return false
+}
+
+// A key bound to `command` gone down this frame, its modifier held: for what the client
+// does in and out of a match alike (a screenshot).
+bound_pressed :: proc(config: ^res.Client_Config, command: string) -> bool {
+	for name, bound in config.binds {
+		if bound != command do continue
+		modifier, key, is_key := key_parse(name)
+		if is_key && modifier_down(modifier) && key_pressed(key) do return true
 	}
 	return false
 }

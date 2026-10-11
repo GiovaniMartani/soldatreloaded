@@ -4,7 +4,8 @@ import "../ui"
 
 // The keys: what each control does and the two keys that can do it, by what it is for, in
 // two columns where there is room. A click on a key, or Enter on it, waits for the next
-// key; a right-click, or Delete, lets it go.
+// key; a right-click, or Delete, lets it go. A demo's keys (demo_pause and the rest) are
+// the config's alone: they are no menu's.
 // Under them, the flag thrown the old way, by jump and crouch together, and how the
 // radio sits with the weapons menu.
 
@@ -20,7 +21,9 @@ CONTROLS := [?]Control {
 	{"Reload", "+reload"}, {"Change weapon", "+change"}, {"Throw weapon", "+drop"}, {"Throw flag", "+flagthrow"},
 	{"Chat", "chat"}, {"Team chat", "teamchat"}, {"Command", "cmd"},
 	{"Radio", "+radio"}, {"Weapons menu", "weaponsmenu"}, {"Team menu", "teammenu"}, {"Scoreboard", "fragsmenu"},
-	{"Weapon stats", "statsmenu"}, {"Minimap", "toggle ui_minimap"}, {"Record demo", "togglerecord"},
+	{"Weapon stats", "statsmenu"}, {"Minimap", "toggle ui_minimap"},
+	{"Fullscreen", "togglewindow"}, {"Screenshot", "screenshot"}, {"Record demo", "togglerecord"},
+	{"Vote yes", "say /yes"}, {"Vote no", "say /no"},
 }
 
 // The groups, as runs of CONTROLS, and the column each goes in.
@@ -36,7 +39,9 @@ CONTROL_GROUPS := [?]Control_Group {
 	{"MOVEMENT", 0, 6, 0},
 	{"COMBAT", 6, 6, 0},
 	{"TALK", 12, 4, 1},
-	{"MENUS", 16, 6, 1},
+	{"MENUS", 16, 5, 1},
+	{"DISPLAY", 21, 3, 1},
+	{"VOTES", 24, 2, 0}, // last in one column; under COMBAT in two
 }
 
 page_controls :: proc(menu: ^Menu) {
@@ -64,7 +69,7 @@ page_controls :: proc(menu: ^Menu) {
 	k.x, k.w = x, w
 	k.y = max(ends[0], ends[1])
 	ui.gap(k, 6)
-	ui.toggle(k, "Legacy flag throw", &menu.config.controls.legacy_flag_throw) // jump and crouch together throw the flag
+	ui.toggle(k, "Legacy flag throw (w+s to throw)", &menu.config.controls.legacy_flag_throw) // jump and crouch together throw the flag
 	ui.toggle(k, "Prioritize weapons menu over radio", &menu.config.radio.weapons_first) // both open, the number keys pick a weapon
 	ui.toggle(k, "Auto close radio when weapons menu opens", &menu.config.radio.close_on_weapons)
 }

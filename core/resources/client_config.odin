@@ -306,8 +306,7 @@ DEFAULT_BINDS := [?][2]string {
 	{"f1", "fragsmenu"},
 	{"f2", "statsmenu"},
 	{"f3", "toggle ui_minimap"},
-	{"f5", "toggle ui_info"},
-	{"f7", "toggle ui_playernames"},
+	{"f4", "screenshot"},
 	{"f9", "togglewindow"},
 	{"f10", "togglerecord"},
 	{"f6", "demo_pause"},
@@ -355,8 +354,10 @@ client_config_load :: proc(path: string, old_path := "") -> ^Client_Config {
 		if lobby_moved(&config.network.lobby) do log.infof("%s: the lobby is %s now", path, LOBBY_URL)
 		carried := mod_carried(from, config)
 		unbound := vsync_unbound(config)
-		if unbound do log.infof("%s: vsync is the graphics menu's alone now, its key let go", path)
-		if from != path || carried || unbound do client_config_save(config, path)
+		if unbound do log.infof("%s: vsync is the graphics menu's alone now, its key let go (F4 takes the screenshot)", path)
+		dropped_keys := settings_unbound(config)
+		if dropped_keys do log.infof("%s: F5 and F7 no longer toggle the frame rate and the player names, which are the Options page's", path)
+		if from != path || carried || unbound || dropped_keys do client_config_save(config, path)
 		if dropped > 0 {
 			config.problem = fmt.aprintf("%d settings weren't understood and are at their defaults; the file as it was is %s.bak", dropped, from, allocator = arena)
 		}
@@ -400,8 +401,9 @@ lobby_moved :: proc(url: ^string) -> bool {
 	return true
 }
 
-// The keys bound to `toggle r_swapeffect` (F4, once a default) let go: a stray press
-// turned vsync on, and the config kept it. True if there were any.
+// The keys bound to `toggle r_swapeffect` let go: a stray press turned vsync on, and the
+// config kept it. F4, where it was a default, takes the screenshot, as it now does by
+// default. True if there were any.
 @(private = "file")
 vsync_unbound :: proc(config: ^Client_Config) -> (unbound: bool) {
 	for {
@@ -413,9 +415,24 @@ vsync_unbound :: proc(config: ^Client_Config) -> (unbound: bool) {
 			}
 		}
 		if !found do return
-		delete_key(&config.binds, key)
+		if key == "f4" do config.binds[key] = "screenshot"
+		else do delete_key(&config.binds, key)
 		unbound = true
 	}
+}
+
+// The game's keys of before that turned a setting on or off (F5 the frame rate and the
+// line's numbers, F7 the player names), let go where they are still so: a stray press
+// changed a setting the Options page keeps, and the config kept it. True if any were.
+@(private = "file")
+settings_unbound :: proc(config: ^Client_Config) -> (unbound: bool) {
+	OLD :: [?][2]string{{"f5", "toggle ui_info"}, {"f7", "toggle ui_playernames"}}
+	for old in OLD {
+		if config.binds[old[0]] != old[1] do continue
+		delete_key(&config.binds, old[0])
+		unbound = true
+	}
+	return
 }
 
 // The command a key is bound to; none for a key the player has let go.

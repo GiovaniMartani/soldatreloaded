@@ -38,6 +38,7 @@ import res "../../core/resources"
 import "../../core/utils"
 import "match"
 import "menu"
+import "input"
 import "online"
 import "sound"
 import "ui"
@@ -105,11 +106,13 @@ main :: proc() {
 		update(&client, rl.GetFrameTime())
 		sound.sound_update(&client.sound)
 		discord_update(&client)
-		shot := rl.IsKeyPressed(.F12) // raylib takes a screenshot as the frame ends
+		// raylib took one of its own on F12 as the last frame ended, which isn't wanted
+		if rl.IsKeyPressed(.F12) do screenshot_discard()
+		shot := input.bound_pressed(client.config, "screenshot")
 		rl.BeginDrawing()
 		draw(&client)
 		rl.EndDrawing()
-		if shot do screenshots_collect()
+		if shot do screenshot_take()
 		free_all(context.temp_allocator)
 	}
 

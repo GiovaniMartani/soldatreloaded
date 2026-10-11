@@ -6,18 +6,36 @@ import "core:os"
 import "core:strconv"
 import "core:strings"
 
+import rl "vendor:raylib"
+
 import "../../core/utils"
 
-// Screenshots, in screenshots/. Raylib takes one as F12 is pressed, as it is built to, and
-// writes it where the game runs, as screenshotNNN.png, counting from 000 each time the
-// game starts, so each start's would overwrite the last's. Each is moved into
-// screenshots/ as it is taken (and any left from before, as the game starts), numbered on
-// from the last there: screenshot0001.png, screenshot0002.png, ...
+// Screenshots, in screenshots/, taken by the key bound to `screenshot` (F4), numbered on
+// from the last there: screenshot0001.png, screenshot0002.png, ... Raylib takes one of
+// its own as F12 is pressed, as it is built to and nothing at run time stops, as the
+// frame ends, where the game runs, as screenshotNNN.png; F12 being vote yes, that one is
+// thrown away the frame after (screenshot_discard). Any left from before, raylib's or
+// ours, are moved into screenshots/ as the game starts.
 
 SCREENSHOTS_DIR :: "screenshots"
 SCREENSHOT_KEY :: "screenshot" // raylib's names', and ours'
 
-// Raylib's screenshots where the game runs, each moved into screenshots/ under the next
+// The frame just drawn, into screenshots/ under the next number there. After EndDrawing,
+// as raylib takes its own.
+screenshot_take :: proc() {
+	os.make_directory_all(SCREENSHOTS_DIR)
+	name := fmt.tprintf("%s%04d.png", SCREENSHOT_KEY, last_number(screenshot_files(SCREENSHOTS_DIR)) + 1)
+	rl.TakeScreenshot(strings.clone_to_cstring(name, context.temp_allocator)) // where the game runs
+	to := utils.temp_path(SCREENSHOTS_DIR, name)
+	if err := os.rename(name, to); err != nil do log.errorf("cannot move %s to %s: %v", name, to, err) // collected as the game next starts
+}
+
+// Raylib's own screenshots of F12 where the game runs, thrown away.
+screenshot_discard :: proc() {
+	for name in screenshot_files(".") do os.remove(name)
+}
+
+// The screenshots where the game runs, each moved into screenshots/ under the next
 // number there.
 screenshots_collect :: proc() {
 	taken := screenshot_files(".")
