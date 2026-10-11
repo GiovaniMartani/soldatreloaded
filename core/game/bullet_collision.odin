@@ -1,7 +1,5 @@
 package game
 
-import "core:math"
-
 import res "../resources"
 import "../utils"
 
@@ -440,14 +438,9 @@ body_collide :: proc(
 			return
 		case .Frag_Grenade:
 			if corpse do return // grenades roll over corpses, and look no further
-			// it goes off where its path first crossed into a part's circle: not where it
-			// started the tick as in the original, where a fast throw went off up to its speed
-			// short of the part, nor where the tick left it inside one, deeper the slower it
-			// flew. A direct hit is then the same blast every time, its edge's.
-			grenade_part, grenade_contact := grenade_entry(start, bullet.velocity, &joints, radius)
-			if grenade_part >= 0 {
-				part, contact = grenade_part, grenade_contact
-			}
+			// it goes off where it met the body, not where it started the tick as in the
+			// original, where a fast throw went off up to its speed short of the part, short
+			// of a kill
 			bullet.pos = contact
 			explode(world, resources, id, .Frag, target_id, part, authority, out)
 			bullet_end(world, id, out)
@@ -474,41 +467,6 @@ body_collide :: proc(
 			bullet_end(world, id, out, point)
 			return
 		}
-	}
-	return
-}
-
-// The part a grenade's path crossed into first, and where: along the line of its flight,
-// the circle (two pixels off, as body_collide has it) entered at the least distance, which
-// is behind the start for one it started the tick inside. One lying still, with no line,
-// meets the nearest circle where it lies toward its point. -1 if it meets none.
-@(private = "file")
-grenade_entry :: proc(start, velocity: utils.Vec2, joints: ^Joints, radius: f32) -> (part: int, point: utils.Vec2) {
-	part = -1
-	best := max(f32)
-	speed2 := velocity.x * velocity.x + velocity.y * velocity.y
-	for k in HIT_PARTS {
-		center := joints[k] - {2.0, 0}
-		f := start - center
-		if speed2 < 0.0001 {
-			distance := utils.length(f)
-			if distance > radius || distance >= best do continue
-			best = distance
-			part = k
-			point = center + (utils.normalize(f) if distance > 0.0001 else utils.Vec2{0, -1}) * radius
-			continue
-		}
-		// |f + t v| = radius, the lesser root: where the line enters the circle
-		b := f.x * velocity.x + f.y * velocity.y
-		c := f.x * f.x + f.y * f.y - radius * radius
-		delta := b * b - speed2 * c
-		if delta < 0 do continue
-		t := (-b - math.sqrt(delta)) / speed2
-		if t > 1 || -b + math.sqrt(delta) < 0 do continue // entered past this tick, or left before it
-		if t >= best do continue
-		best = t
-		part = k
-		point = start + velocity * t
 	}
 	return
 }
