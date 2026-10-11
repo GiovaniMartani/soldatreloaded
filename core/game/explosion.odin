@@ -127,7 +127,13 @@ blast_soldier :: proc(
 	}
 	modifier := hitbox_modifier(stats, part)
 
-	a := bullet.pos - joints[part]
+	// a grenade's part struck directly is measured where it was met, two pixels off as
+	// the sprites sit (body_collide): a blast from its edge is then always a kill
+	center := joints[part]
+	if bullet.style == .Frag_Grenade && part == hit_part {
+		if struck, direct := hit_soldier.?; direct && struck == id do center.x -= 2.0
+	}
+	a := bullet.pos - center
 	distance2 := a.x * a.x + a.y * a.y
 	if distance2 >= radius * radius do return
 

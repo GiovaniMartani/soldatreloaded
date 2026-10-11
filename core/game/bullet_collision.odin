@@ -378,7 +378,7 @@ body_collide :: proc(
 		// The part is the one met nearest the start; the point is the last one met, in
 		// priority order, which is what the original's variable holds when it is done.
 		part := -1
-		point: utils.Vec2
+		point, contact: utils.Vec2 // contact: where that nearest part was met
 		best := max(f32)
 		for k in HIT_PARTS {
 			center := joints[k]
@@ -390,6 +390,7 @@ body_collide :: proc(
 			if distance < best {
 				best = distance
 				part = k
+				contact = q
 			}
 		}
 		if part < 0 do continue
@@ -437,6 +438,10 @@ body_collide :: proc(
 			return
 		case .Frag_Grenade:
 			if corpse do return // grenades roll over corpses, and look no further
+			// it goes off where it met the body, not where it started the tick as in the
+			// original, where a fast throw went off up to its speed short of the part, short
+			// of a kill
+			bullet.pos = contact
 			explode(world, resources, id, .Frag, target_id, part, authority, out)
 			bullet_end(world, id, out)
 			return
