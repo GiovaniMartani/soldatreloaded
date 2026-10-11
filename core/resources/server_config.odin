@@ -118,14 +118,13 @@ server_config_load :: proc(path: string, old_path := "") -> ^Server_Config {
 		log.infof("%s is made from %s, which is left as it is", path, old_path)
 		from = old_path
 	}
-	switch config_read(from, config, virtual.arena_allocator(&config.arena)) {
+	switch result, _, _ := config_read(from, config, virtual.arena_allocator(&config.arena), backup = true); result {
 	case .Read:
 		if lobby_moved(&config.lobby.url) do log.infof("%s: the lobby is %s now", path, LOBBY_URL)
 		if from != path do server_config_save(config, path)
 	case .Missing:
 		server_config_save(config, path)
 	case .Broken:
-		server_config_reset(config) // what was read before it went wrong goes too
 		config.broken = true
 	}
 	return config

@@ -522,14 +522,17 @@ logo :: proc(k: ^ui.Kit, x, y, width: f32) -> f32 {
 	return sy + ui.height_of(u, sub) - y
 }
 
-// The panel's header: the page's title, and a line on what it is for.
+// The panel's header: the page's title, and a line on what it is for; or, while the
+// config's file has a problem, what it is.
 @(private = "file")
 header :: proc(menu: ^Menu, x, w: f32) {
 	k := &menu.kit
 	y := f32(PANEL_TOP + 13)
 	ui.text_at(k, ui.TITLE, PAGE_NAMES[menu.page], x, y, ui.TEXT)
 	y += ui.height_of(k.ui, ui.TITLE) + 4
-	ui.text_fit(k, ui.SUBTITLE, PAGE_LINES[menu.page], x, y + ui.height_of(k.ui, ui.SUBTITLE) / 2, w, ui.MUTED)
+	line, color := PAGE_LINES[menu.page], ui.MUTED
+	if problem := menu.config.problem; problem != "" do line, color = problem, ui.WARN
+	ui.text_fit(k, ui.SUBTITLE, line, x, y + ui.height_of(k.ui, ui.SUBTITLE) / 2, w, color)
 	ui.rule(k.ui, x, x + w, PANEL_TOP + HEADER_H, ui.LINE)
 }
 

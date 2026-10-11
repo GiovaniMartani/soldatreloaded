@@ -79,7 +79,7 @@ DEFAULT_BOT_FILE := Bot_File {
 // A bot's file; false (and says so in the log) if it can't be read.
 bot_profile_load :: proc(path: string) -> (profile: Bot_Profile, ok: bool) {
 	f := DEFAULT_BOT_FILE
-	if config_read(path, &f, context.temp_allocator) != .Read {
+	if result, _, _ := config_read(path, &f, context.temp_allocator); result != .Read {
 		log.errorf("bots: %s can't be read", path)
 		return {}, false
 	}

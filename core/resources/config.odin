@@ -24,40 +24,112 @@ import "../utils"
 // without regard to case. A field tagged `json:"-"` is not part of the file.
 //
 // A key the file doesn't hold keeps the setting's default, a key the struct doesn't have
-// is passed over, and a file that isn't MJSON, or holds a value a setting can't take, is
-// logged with where it went wrong and read as none: the defaults stand. The file is
-// written whole, from the struct, so a comment of the player's own doesn't last.
+// is passed over, and each setting is read on its own: one holding a value it can't take
+// (a name a version before or after this one has, a value of another kind) is logged and
+// keeps its default, the rest read as they are, and a player's or a host's file as it was
+// is kept beside it (`.bak`), as the game will write over it. A file that isn't MJSON at all is logged with
+// where it went wrong and read as none: the defaults stand, and it is left for its owner
+// to mend. The file is written whole, from the struct, so a comment of the player's own
+// doesn't last.
 
 Config_Read :: enum {
 	Read,
 	Missing, // no file: the config holds its defaults
-	Broken,  // a file, but not one to read: logged
+	Broken,  // a file, but not MJSON: logged
 }
 
-// The file at `path` over `config`, its strings allocated with `allocator`. A file that
-// is Broken may have been read in part: the caller sets the defaults again.
-config_read :: proc(path: string, config: ^$T, allocator: mem.Allocator) -> Config_Read {
-	if !utils.file_exists(path) do return .Missing
+// The file at `path` over `config`, its strings allocated with `allocator`; `dropped`, the
+// settings that kept their defaults, their values not ones they take, and with `backup`
+// the file as it was kept beside it. `line`, where a Broken file stops being MJSON.
+// Nothing of a Broken file is read.
+config_read :: proc(path: string, config: ^$T, allocator: mem.Allocator, backup := false) -> (result: Config_Read, dropped, line: int) {
+	if !utils.file_exists(path) do return .Missing, 0, 0
 	text, read := utils.read_file(path, context.temp_allocator)
-	if !read do return .Broken
+	if !read do return .Broken, 0, 0
 
-	// Checked whole first: the unmarshaling says where a value is wrong, not where the
-	// text isn't MJSON, and with our own unmarshalers registered it doesn't check it.
-	if err, at := not_json(text, .MJSON); err != nil {
+	parsed, err, at := parse_json(text, .MJSON)
+	if err != nil {
 		log.errorf("%s:%d:%d: not MJSON (%v); the defaults are used, and the file is left as it is", path, at.line, at.column, err)
-		return .Broken
+		return .Broken, 0, at.line
 	}
+	object, is_object := parsed.(json.Object)
+	if !is_object {
+		log.errorf("%s: not a config, its settings in braces; the defaults are used, and the file is left as it is", path)
+		return .Broken, 0, 1
+	}
+	whole := Whole{config, ^T, size_of(T), align_of(T), path, allocator}
+	keys := make([dynamic]string, context.temp_allocator)
+	dropped = settings_take(&whole, &keys, object, 0, T)
+	if dropped > 0 && backup {
+		kept := fmt.tprintf("%s.bak", path)
+		if utils.write_file(kept, text) do log.warnf("%s: as it was, in %s", path, kept)
+	}
+	return .Read, dropped, 0
+}
 
-	switch err in json.unmarshal(text, config, .MJSON, allocator) {
-	case nil:
-		return .Read
-	case json.Unsupported_Type_Error:
-		at := err.token.pos
-		log.errorf("%s:%d:%d: %s isn't a value this setting takes, %s; the defaults are used, and the file is left as it is", path, at.line, at.column, err.token.text, wanted(err.id))
-	case json.Error, json.Unmarshal_Data_Error:
-		log.errorf("%s: %v; the defaults are used, and the file is left as it is", path, err)
+// The config being read, as its settings are taken one at a time: each is read into a
+// blank one (the package reads only through a pointer of the config's type), and its
+// bytes copied over.
+@(private = "file")
+Whole :: struct {
+	data:      rawptr,
+	pointer:   typeid, // ^ the config's type
+	size:      int,
+	align:     int,
+	path:      string,
+	allocator: mem.Allocator,
+}
+
+// The struct of `id`, `offset` into the config and under `keys`, each of its fields from
+// its key of `object`, a struct field from its own object; the settings that couldn't
+// take their values, logged and left as they were.
+@(private = "file")
+settings_take :: proc(whole: ^Whole, keys: ^[dynamic]string, object: json.Object, offset: uintptr, id: typeid) -> (dropped: int) {
+	for field in reflect.struct_fields_zipped(id) {
+		if reflect.struct_tag_get(field.tag, "json") == "-" do continue
+		value := object[field.name] or_continue
+		append(keys, field.name)
+		defer pop(keys)
+		at := offset + field.offset
+		inner, is_object := value.(json.Object)
+		if is_object && reflect.is_struct(reflect.type_info_base(field.type)) {
+			dropped += settings_take(whole, keys, inner, at, field.type.id)
+		} else if !setting_take(whole, keys[:], value, at, field.type) {
+			shown, _ := json.marshal(value, allocator = context.temp_allocator)
+			name := strings.join(keys[:], ".", context.temp_allocator)
+			log.warnf("%s: %s: %s isn't a value this setting takes, %s; it keeps its default", whole.path, name, string(shown), wanted(field.type.id))
+			dropped += 1
+		}
 	}
-	return .Broken
+	return
+}
+
+// One setting, of type `ti` `offset` into the config and under `keys`, from `value`, as
+// the package reads one; left as it was if it can't take it. A map's keys go over the
+// ones it has (the binds over the game's).
+@(private = "file")
+setting_take :: proc(whole: ^Whole, keys: []string, value: json.Value, offset: uintptr, ti: ^reflect.Type_Info) -> bool {
+	b := strings.builder_make(context.temp_allocator)
+	for key in keys {
+		strings.write_byte(&b, '{')
+		strings.write_quoted_string(&b, key)
+		strings.write_byte(&b, ':')
+	}
+	options: json.Marshal_Options
+	if json.marshal_to_builder(&b, value, &options) != nil do return false
+	for _ in keys do strings.write_byte(&b, '}')
+
+	blank, _ := mem.alloc(whole.size, whole.align, context.temp_allocator)
+	if json.unmarshal_any(transmute([]byte)strings.to_string(b), any{&blank, whole.pointer}, .JSON, whole.allocator) != nil do return false
+	from := rawptr(uintptr(blank) + offset)
+	to := rawptr(uintptr(whole.data) + offset)
+	if ti.id == typeid_of(map[string]string) {
+		kept := (^map[string]string)(to)
+		for key, command in (^map[string]string)(from)^ do kept[key] = command
+	} else {
+		mem.copy(to, from, ti.size)
+	}
+	return true
 }
 
 // JSON that isn't a config's (a manifest, a web service's answer) into `value`, its
@@ -65,13 +137,13 @@ config_read :: proc(path: string, config: ^$T, allocator: mem.Allocator) -> Conf
 // is: with the marshalers below registered, the unmarshaling doesn't check it. False if
 // it isn't JSON, or isn't a `T`.
 read_json :: proc(text: []byte, value: ^$T, allocator := context.allocator) -> bool {
-	if err, _ := not_json(text, .JSON); err != nil do return false
+	if _, err, _ := parse_json(text, .JSON); err != nil do return false
 	return json.unmarshal(text, value, .JSON, allocator) == nil
 }
 
-// Where `text` stops being `spec`, if it does.
+// `text` as `spec`, in the temp allocator; or where it stops being it.
 @(private = "file")
-not_json :: proc(text: []byte, spec: json.Specification) -> (err: json.Error, at: json.Pos) {
+parse_json :: proc(text: []byte, spec: json.Specification) -> (value: json.Value, err: json.Error, at: json.Pos) {
 	// All of it in the temp allocator, the context's too: on an error the parser frees
 	// what it has made with the context's allocator rather than its own.
 	context.allocator = context.temp_allocator
@@ -79,14 +151,14 @@ not_json :: proc(text: []byte, spec: json.Specification) -> (err: json.Error, at
 	// MJSON's whole may go without its braces: then it starts at its first key, as the
 	// package reads it
 	if spec == .MJSON && (parser.curr_token.kind == .Ident || parser.curr_token.kind == .String) {
-		_, err = json.parse_object_body(&parser, .EOF)
+		value, err = json.parse_object_body(&parser, .EOF)
 	} else {
-		_, err = json.parse_value(&parser)
+		value, err = json.parse_value(&parser)
 		// MJSON takes the line's end after the closing brace for a comma
 		if err == nil && spec == .MJSON && parser.curr_token.kind == .Comma do json.advance_token(&parser)
 	}
 	if err == nil && parser.curr_token.kind != .EOF do err = .Unexpected_Token // something after the value
-	return err, parser.curr_token.pos
+	return value, err, parser.curr_token.pos
 }
 
 // What a setting of type `id` takes, said for a person editing the file.

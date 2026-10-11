@@ -227,6 +227,33 @@ old_mod_setting :: proc(t: ^testing.T) {
 	testing.expect_value(t, len(classic.graphics.mods), 0)
 }
 
+// A config of another version, with values this one doesn't take (a haircut it hasn't, a
+// setting now of another kind) and a setting it hasn't: those settings keep their
+// defaults, the rest read; the file as it was kept beside it, and the menu told.
+@(test)
+values_of_another_version :: proc(t: ^testing.T) {
+	dir := scratch(t, "another")
+	defer os.remove_all(dir)
+	path := utils.temp_path(dir, "client.config.mjson")
+	text := "player: {name: \"Kept\", hair_style: \"topknot\", gostek: \"female\"}\ngraphics: {vsync: \"sometimes\", max_fps: 144, shiny: true}\nnew_section: {on: true}\nbinds: {g: \"say Hi!\"}\n"
+	write(path, text)
+	config := res.client_config_load(path)
+	defer res.client_config_destroy(config)
+	testing.expect(t, !config.broken, "not broken")
+	testing.expect(t, config.player.name == "Kept" && config.player.gostek == .Female && config.graphics.max_fps == 144, "the settings it takes read")
+	testing.expect(t, config.player.hair_style == res.DEFAULT_CLIENT_CONFIG.player.hair_style && !config.graphics.vsync, "the ones it doesn't keep their defaults")
+	hi, _ := res.client_config_bind(config, "g")
+	fire, _ := res.client_config_bind(config, "mouse1")
+	testing.expect(t, hi == "say Hi!" && fire == "+fire", "the binds over the game's own")
+	testing.expect(t, strings.has_prefix(config.problem, "2 settings"), "the menu told how many")
+	testing.expect_value(t, read(strings.concatenate({path, ".bak"}, context.temp_allocator)), text)
+
+	write(path, "player: {name: \"Fine\"}\n")
+	fine := res.client_config_load(path)
+	defer res.client_config_destroy(fine)
+	testing.expect(t, fine.problem == "" && fine.player.name == "Fine", "a config read whole has nothing to say")
+}
+
 // A config with vsync's old key (F4, `toggle r_swapeffect`) has it let go, and is written
 // so; its other binds, and vsync itself, kept.
 @(test)

@@ -1,6 +1,7 @@
 package resources
 
 import "core:encoding/json"
+import "core:fmt"
 import "core:log"
 import "core:mem/virtual"
 import "core:strings"
@@ -37,6 +38,7 @@ Client_Config :: struct {
 
 	arena:     virtual.Arena `json:"-"`, // everything the config's strings and binds are allocated in
 	broken:    bool `json:"-"`,          // its file couldn't be read, so it is never written over
+	problem:   string `json:"-"`,        // what went wrong reading its file, for the menu to say; "" for nothing
 }
 
 Player_Settings :: struct {
@@ -347,18 +349,22 @@ client_config_load :: proc(path: string, old_path := "") -> ^Client_Config {
 		log.infof("%s is made from %s, which is left as it is", path, old_path)
 		from = old_path
 	}
-	switch config_read(from, config, virtual.arena_allocator(&config.arena)) {
+	arena := virtual.arena_allocator(&config.arena)
+	switch result, dropped, line := config_read(from, config, arena, backup = true); result {
 	case .Read:
 		if lobby_moved(&config.network.lobby) do log.infof("%s: the lobby is %s now", path, LOBBY_URL)
 		carried := mod_carried(from, config)
 		unbound := vsync_unbound(config)
 		if unbound do log.infof("%s: vsync is the graphics menu's alone now, its key let go", path)
 		if from != path || carried || unbound do client_config_save(config, path)
+		if dropped > 0 {
+			config.problem = fmt.aprintf("%d settings weren't understood and are at their defaults; the file as it was is %s.bak", dropped, from, allocator = arena)
+		}
 	case .Missing:
 		client_config_save(config, path)
 	case .Broken:
-		client_config_reset(config) // what was read before it went wrong goes too
 		config.broken = true
+		config.problem = fmt.aprintf("%s has a mistake on line %d: on the defaults until it is fixed or deleted", from, line, allocator = arena)
 	}
 	return config
 }
