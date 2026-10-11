@@ -304,7 +304,6 @@ DEFAULT_BINDS := [?][2]string {
 	{"f1", "fragsmenu"},
 	{"f2", "statsmenu"},
 	{"f3", "toggle ui_minimap"},
-	{"f4", "toggle r_swapeffect"},
 	{"f5", "toggle ui_info"},
 	{"f7", "toggle ui_playernames"},
 	{"f9", "togglewindow"},
@@ -352,7 +351,9 @@ client_config_load :: proc(path: string, old_path := "") -> ^Client_Config {
 	case .Read:
 		if lobby_moved(&config.network.lobby) do log.infof("%s: the lobby is %s now", path, LOBBY_URL)
 		carried := mod_carried(from, config)
-		if from != path || carried do client_config_save(config, path)
+		unbound := vsync_unbound(config)
+		if unbound do log.infof("%s: vsync is the graphics menu's alone now, its key let go", path)
+		if from != path || carried || unbound do client_config_save(config, path)
 	case .Missing:
 		client_config_save(config, path)
 	case .Broken:
@@ -391,6 +392,24 @@ lobby_moved :: proc(url: ^string) -> bool {
 	if url^ != OLD_LOBBY_URL && url^ != OLD_LOBBY_URL + "/" do return false
 	url^ = LOBBY_URL
 	return true
+}
+
+// The keys bound to `toggle r_swapeffect` (F4, once a default) let go: a stray press
+// turned vsync on, and the config kept it. True if there were any.
+@(private = "file")
+vsync_unbound :: proc(config: ^Client_Config) -> (unbound: bool) {
+	for {
+		key, found := "", false
+		for k, command in config.binds {
+			if strings.equal_fold(strings.trim_space(command), "toggle r_swapeffect") {
+				key, found = k, true
+				break
+			}
+		}
+		if !found do return
+		delete_key(&config.binds, key)
+		unbound = true
+	}
 }
 
 // The command a key is bound to; none for a key the player has let go.

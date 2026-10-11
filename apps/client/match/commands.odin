@@ -11,7 +11,7 @@ import "../hud"
 // meant. A command the client doesn't know, typed after a slash, goes to the server.
 //
 //   escmenu teammenu weaponsmenu fragsmenu statsmenu   the menus
-//   toggle <setting>    ui_minimap, ui_info, ui_playernames, r_swapeffect (vsync)
+//   toggle <setting>    ui_minimap, ui_info, ui_playernames (vsync is the graphics menu's alone)
 //   togglewindow        fullscreen, or a window
 //   chat teamchat cmd   the prompt, for everyone, the team, or a command
 //   say <text>  say_team <text>   a line, as a key says it: a taunt
@@ -147,9 +147,8 @@ toggle :: proc(match: ^Match, name: string) {
 		return
 	case "ui_minimap":     setting = &config.interface.minimap
 	case "ui_playernames": setting = &config.interface.player_names
-	case "r_swapeffect":   setting = &config.graphics.vsync
 	case:
-		usage(match, "toggle ui_minimap | ui_info | ui_playernames | r_swapeffect")
+		usage(match, "toggle ui_minimap | ui_info | ui_playernames")
 		return
 	}
 	setting^ = !setting^

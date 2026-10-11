@@ -227,6 +227,24 @@ old_mod_setting :: proc(t: ^testing.T) {
 	testing.expect_value(t, len(classic.graphics.mods), 0)
 }
 
+// A config with vsync's old key (F4, `toggle r_swapeffect`) has it let go, and is written
+// so; its other binds, and vsync itself, kept.
+@(test)
+old_vsync_bind :: proc(t: ^testing.T) {
+	dir := scratch(t, "vsync")
+	defer os.remove_all(dir)
+	path := utils.temp_path(dir, "client.config.mjson")
+	write(path, "graphics: {vsync: true}\nbinds: {f4: \"toggle r_swapeffect\", g: \"say Hi!\"}\n")
+	config := res.client_config_load(path)
+	defer res.client_config_destroy(config)
+	_, bound := res.client_config_bind(config, "f4")
+	testing.expect(t, !bound, "f4 let go")
+	hi, _ := res.client_config_bind(config, "g")
+	testing.expect_value(t, hi, "say Hi!")
+	testing.expect(t, config.graphics.vsync, "vsync as it was")
+	testing.expect(t, !strings.contains(read(path), "r_swapeffect"), "and written so")
+}
+
 // A config that still names the lobby of before is moved to the lobby now, the client's
 // and the server's; one naming a lobby of its own keeps it.
 @(test)
