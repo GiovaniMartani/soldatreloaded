@@ -21,10 +21,10 @@ EXPLOSION_IMPACT_MULTIPLY :: f32(3.75)
 EXPLOSION_DEADIMPACT_MULTIPLY :: f32(4.5)
 CORPSE_BLAST_POINTS :: 16 // the corpse's points a blast throws about
 
-// What a frag that strikes a soldier anywhere but the feet takes of its blast, whatever
-// the weapons' modifiers: 105 of the 167 a strike on a foot takes, which kills. The game's
-// own, as the feet alone are a kill on every server and offline.
-FRAG_STRIKE_BODY :: f32(0.63)
+// A frag's modifier on the chest and the head, the game's own whatever the weapons say (on
+// the legs, 1: frag_modifier): a frag striking a soldier goes off 8 from the circle it
+// crossed into first, 1505 / 9 = 167 times this, 105, which kills no one at full health.
+FRAG_UPPER_MODIFIER :: f32(0.63)
 
 // Bullet `id` goes off where it is, and ends. `hit_soldier` and `hit_part` name a
 // soldier it struck directly, and the pose point whose circle it struck; else nil and -1.
@@ -135,27 +135,32 @@ blast_soldier :: proc(
 			}
 		}
 	}
-	modifier := hitbox_modifier(stats, part)
-	if direct && hit_label >= 0 {
-		modifier = hitbox_modifier(stats, hit_label)
-		// a frag struck on the feet takes all of it, anywhere else FRAG_STRIKE_BODY of it
-		if bullet.style == .Frag_Grenade do modifier = 1.0 if hit_label <= 1 else FRAG_STRIKE_BODY
-	}
+	modifier := hitbox_modifier(stats, hit_label if direct && hit_label >= 0 else part)
+	if bullet.style == .Frag_Grenade do modifier = frag_modifier(part)
 
-	a := bullet.pos - joints[part]
+	// a frag struck on the body went off on the edge of the circle it crossed into first
+	// (grenade_circle): measured to that circle's point as the collision has it, two pixels
+	// off as the sprites sit, so the part struck takes the same blast every time
+	center := joints[part]
+	if direct && bullet.style == .Frag_Grenade do center.x -= 2.0
+	a := bullet.pos - center
 	distance2 := a.x * a.x + a.y * a.y
 	if distance2 >= radius * radius do return
 
 	distance := math.sqrt(distance2)
-	// a grenade struck on the body goes off as at the edge of the circle it met, wherever
-	// this tick left it, so the same part takes the same blast every time: how deep it had
-	// gone in said only how slow it flew
-	if direct && bullet.style == .Frag_Grenade do distance = PART_RADIUS + 1.0
 	a = a * (1.0 / (distance + 1.0)) * EXPLOSION_IMPACT_MULTIPLY
 	a.y *= 2.0
 
 	amount: f32 = (1.0 / (distance + 1.0)) * stats.damage * modifier if soldier.vitals.cease_fire < 0 else 0
 	emit(out, Hit{shooter = bullet.owner, target = id, weapon = bullet.weapon, amount = amount, part = 0, pos = joints[part], push = a * -1.0, impact = a, spray = true})
+}
+
+// A frag's modifier for a pose point, the game's own whatever the weapons say: the legs
+// all of it, the chest and the head FRAG_UPPER_MODIFIER.
+@(private = "file")
+frag_modifier :: proc(part: int) -> f32 {
+	if part + 1 <= 4 do return 1.0 // the original's 1-based skeleton numbering, as hitbox_modifier
+	return FRAG_UPPER_MODIFIER
 }
 
 // The dead: every point in reach is thrown, and the body takes a wound by the last of

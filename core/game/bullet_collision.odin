@@ -58,10 +58,26 @@ LABEL_STEP :: f32(0.25)  // how finely the path is followed into the body
 // The pose point a hit on the body along start-end is told to be on (two pixels off, as
 // the sprites sit, but for a blade): the first part of the drawn body its path goes into,
 // followed on through the body if this tick's stretch ends short of it; else the part it
-// passes nearest.
-hit_label :: proc(joints: ^Joints, start, end: utils.Vec2, melee: bool) -> int {
+// passes nearest. One that starts inside the body went in earlier, the body having come
+// onto it: the soldiers move before the bullets, a soldier falling or jetting several
+// pixels onto a grenade. Its part is where it went in, found back along its flight as
+// the body saw it, its own less the body's `motion` this tick: the last part it is in
+// before it is out.
+hit_label :: proc(joints: ^Joints, start, end: utils.Vec2, melee: bool, motion := utils.Vec2{}) -> int {
 	offset := utils.Vec2{0 if melee else 2.0, 0}
 	path := end - start
+	if part, gap := label_at(joints, start, offset); gap <= 0 {
+		back := path - motion
+		back_length := utils.length(back)
+		if back_length < 0.0001 do return part
+		back_dir := back / back_length
+		for s: f32 = LABEL_STEP; s <= back_length + 2.0 * (PART_RADIUS + 1.0); s += LABEL_STEP {
+			in_part, in_gap := label_at(joints, start - back_dir * s, offset)
+			if in_gap > 0 do break // out: it went in at the last part it was in
+			part = in_part
+		}
+		return part
+	}
 	length := utils.length(path)
 	if length < 0.0001 do return nearest_label(joints, start, offset)
 	dir := path / length
@@ -102,6 +118,37 @@ label_at :: proc(joints: ^Joints, p, offset: utils.Vec2) -> (part: int, gap: f32
 	toward := utils.normalize(up) if utils.length(up) > 0.0001 else utils.Vec2{0, -1}
 	center := joints[8] + toward * (HEAD_SIZE / 2.0) - offset
 	if d := utils.length(p - center) - HEAD_SIZE / 2.0; d < gap do part, gap = 11, d
+	return
+}
+
+// The circle (HIT_PARTS, two pixels off as the sprites sit) a grenade's path crossed
+// into first, as the body saw it: from where it was when the tick began, the body having
+// moved `motion` since (a soldier falling or jetting onto it), to where its flight takes
+// it. The original's measure (line_circle_collision) gives a path ending inside a circle
+// its end, not where it crossed in, so a grenade ending the tick inside a leg's circle and
+// a hip's had met both at once, and the hip, first in HIT_PARTS, won. And where it crossed
+// in, on that circle's edge. -1 if it crossed none.
+grenade_circle :: proc(joints: ^Joints, start, velocity, motion: utils.Vec2, radius: f32) -> (circle: int, point: utils.Vec2) {
+	from := start + motion // where it was, against the body as it stands now
+	path := velocity - motion
+	length2 := path.x * path.x + path.y * path.y
+	if length2 < 0.0001 do return -1, start
+	circle = -1
+	first := max(f32)
+	for k in HIT_PARTS {
+		f := from - (joints[k] - {2.0, 0})
+		b := f.x * path.x + f.y * path.y
+		c := f.x * f.x + f.y * f.y - radius * radius
+		delta := b * b - length2 * c
+		if delta < 0 do continue
+		t := (-b - math.sqrt(delta)) / length2 // where it crosses in
+		if t > 1 || (-b + math.sqrt(delta)) / length2 < 0 do continue // past this tick, or behind it
+		if t < first {
+			first = t
+			circle = k
+			point = from + path * t
+		}
+	}
 	return
 }
 
@@ -524,7 +571,9 @@ body_collide :: proc(
 		hit_point = point
 		hit = true
 		if target.vitals.cease_fire >= 0 do continue // spawn protection: it passes through
-		label := hit_label(&joints, start, end, melee) // the part of the drawn body it went into: what it is told to have hit
+		// the part of the drawn body it went into, what it is told to have hit: as it and the
+		// body came together this tick, the body's motion its own (a corpse's, none told)
+		label := hit_label(&joints, start, end, melee, {} if corpse else target.body.velocity)
 
 		push: utils.Vec2
 		if !corpse && bullet.style != .Frag_Grenade {
@@ -565,11 +614,18 @@ body_collide :: proc(
 			return
 		case .Frag_Grenade:
 			if corpse do return // grenades roll over corpses, and look no further
-			// it goes off where it met the body, not where it started the tick as in the
-			// original, where a fast throw went off up to its speed short of the part, short
-			// of a kill
-			bullet.pos = contact
-			explode(world, resources, id, .Frag, target_id, part, authority, out, label)
+			// it goes off where it crossed into the body, on the edge of the circle it crossed
+			// into first (grenade_circle), and that circle is the part it struck: not where it
+			// started the tick as in the original, where a fast throw went off up to its speed
+			// short of the part, nor wherever the tick left it inside the body
+			circle, crossed := grenade_circle(&joints, start, bullet.velocity, target.body.velocity, radius)
+			if circle >= 0 {
+				part = circle
+				bullet.pos = crossed
+			} else {
+				bullet.pos = contact
+			}
+			explode(world, resources, id, .Frag, target_id, part, authority, out)
 			bullet_end(world, id, out)
 			return
 		case .M79, .LAW:
