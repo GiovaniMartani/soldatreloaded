@@ -21,8 +21,14 @@ EXPLOSION_IMPACT_MULTIPLY :: f32(3.75)
 EXPLOSION_DEADIMPACT_MULTIPLY :: f32(4.5)
 CORPSE_BLAST_POINTS :: 16 // the corpse's points a blast throws about
 
+// What a frag that strikes a soldier anywhere but the feet takes of its blast, whatever
+// the weapons' modifiers: 105 of the 167 a strike on a foot takes, which kills. The game's
+// own, as the feet alone are a kill on every server and offline.
+FRAG_STRIKE_BODY :: f32(0.63)
+
 // Bullet `id` goes off where it is, and ends. `hit_soldier` and `hit_part` name a
-// soldier it struck directly, and the pose point struck; else nil and -1.
+// soldier it struck directly, and the pose point whose circle it struck; else nil and -1.
+// `hit_label`, the part of the drawn body it struck (hit_label), whose modifier it takes.
 explode :: proc(
 	world: ^World,
 	resources: ^Resources,
@@ -32,6 +38,7 @@ explode :: proc(
 	hit_part: int,
 	authority: ^Authority,
 	out: ^Tick_Output,
+	hit_label := -1,
 ) {
 	bullet := &world.bullets[id]
 	radius := explosion_radius(kind)
@@ -43,7 +50,7 @@ explode :: proc(
 		if soldier.vitals.dead {
 			blast_corpse(world, resources, bullet, Soldier_Id(i), kind, out)
 		} else {
-			blast_soldier(world, resources, bullet, Soldier_Id(i), bullet_target(world, authority, bullet, i), kind, hit_soldier, hit_part, out) // as the thrower saw it
+			blast_soldier(world, resources, bullet, Soldier_Id(i), bullet_target(world, authority, bullet, i), kind, hit_soldier, hit_part, hit_label, out) // as the thrower saw it
 		}
 	}
 
@@ -107,6 +114,7 @@ blast_soldier :: proc(
 	kind: Explosion_Kind,
 	hit_soldier: Maybe(Soldier_Id),
 	hit_part: int,
+	hit_label: int,
 	out: ^Tick_Output,
 ) {
 	stats := &resources.weapons[explosion_weapon(kind)].stats
@@ -114,7 +122,9 @@ blast_soldier :: proc(
 	joints := soldier_pose(resources.animations, soldier, soldier.body.pos)
 
 	part := hit_part
-	if struck, direct := hit_soldier.?; !direct || struck != id || hit_part < 0 {
+	struck, direct := hit_soldier.?
+	direct = direct && struck == id && hit_part >= 0
+	if !direct {
 		best := max(f32)
 		for k in HIT_PARTS {
 			d := bullet.pos - joints[k]
@@ -126,18 +136,21 @@ blast_soldier :: proc(
 		}
 	}
 	modifier := hitbox_modifier(stats, part)
-
-	// a grenade's part struck directly is measured where it was met, two pixels off as
-	// the sprites sit (body_collide): a blast from its edge is then always a kill
-	center := joints[part]
-	if bullet.style == .Frag_Grenade && part == hit_part {
-		if struck, direct := hit_soldier.?; direct && struck == id do center.x -= 2.0
+	if direct && hit_label >= 0 {
+		modifier = hitbox_modifier(stats, hit_label)
+		// a frag struck on the feet takes all of it, anywhere else FRAG_STRIKE_BODY of it
+		if bullet.style == .Frag_Grenade do modifier = 1.0 if hit_label <= 1 else FRAG_STRIKE_BODY
 	}
-	a := bullet.pos - center
+
+	a := bullet.pos - joints[part]
 	distance2 := a.x * a.x + a.y * a.y
 	if distance2 >= radius * radius do return
 
 	distance := math.sqrt(distance2)
+	// a grenade struck on the body goes off as at the edge of the circle it met, wherever
+	// this tick left it, so the same part takes the same blast every time: how deep it had
+	// gone in said only how slow it flew
+	if direct && bullet.style == .Frag_Grenade do distance = PART_RADIUS + 1.0
 	a = a * (1.0 / (distance + 1.0)) * EXPLOSION_IMPACT_MULTIPLY
 	a.y *= 2.0
 

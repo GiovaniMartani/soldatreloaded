@@ -1,5 +1,7 @@
 package game
 
+import "core:math"
+
 import res "../resources"
 import "../utils"
 
@@ -24,6 +26,104 @@ RICOCHET_TURN :: f32(f64(10.0) / f64(35.0))
 
 // The pose points a bullet can hit, the head first.
 HIT_PARTS :: [7]int{11, 10, 9, 5, 4, 3, 2}
+
+// The body as it is drawn, for which part a hit is on: a capsule along each bone, as
+// thick as its sprite (gostek-gfx's, at the classic mod's scale of 4.5), the head the
+// square its sprite is. Whether a shot hits is still the parts' circles' (HIT_PARTS),
+// but those are twice as wide as the body and overlap, the hips' reaching nearly to the
+// ground and the chest's covering the head, so the circle met first said little of
+// where: a shot at the shins was a chest hit, and the same shot a headshot from one side
+// and not the other. These don't overlap so: the part is the first of them the shot's
+// path goes into.
+Bone :: struct {
+	a, b:   int, // the pose points it runs between
+	trim:   bool, // its round end at `a` pulled in, to stop at the joint: a thigh at the hip
+	radius: f32,
+	part:   int, // the pose point a hit on it is told to be on: 0 or 1 a foot, 2 or 3 a leg, 9 the chest, 11 the head
+}
+
+BONES :: [?]Bone {
+	{5, 2, true, 2.55, 2},   // left thigh, hip to knee (udo)
+	{2, 1, false, 2.55, 2},  // left shin, knee to foot (noga)
+	{1, 17, false, 2.55, 1}, // left foot (stopa)
+	{4, 3, true, 2.55, 3},   // right thigh
+	{3, 0, false, 2.55, 3},  // right shin
+	{0, 16, false, 2.55, 0}, // right foot
+	{4, 5, false, 2.35, 9},  // the hips (biodro)
+}
+TORSO_RADIUS :: f32(3.2) // klata's
+HEAD_SIZE :: f32(6)      // morda's square, from point 9 toward point 12
+LABEL_STEP :: f32(0.25)  // how finely the path is followed into the body
+
+// The pose point a hit on the body along start-end is told to be on (two pixels off, as
+// the sprites sit, but for a blade): the first part of the drawn body its path goes into,
+// followed on through the body if this tick's stretch ends short of it; else the part it
+// passes nearest.
+hit_label :: proc(joints: ^Joints, start, end: utils.Vec2, melee: bool) -> int {
+	offset := utils.Vec2{0 if melee else 2.0, 0}
+	path := end - start
+	length := utils.length(path)
+	if length < 0.0001 do return nearest_label(joints, start, offset)
+	dir := path / length
+	reach := length + 2.0 * (PART_RADIUS + 1.0) // on through the circles it met
+	best_part, best := -1, max(f32)
+	for s: f32 = 0; s <= reach; s += LABEL_STEP {
+		p := start + dir * s
+		part, gap := label_at(joints, p, offset)
+		if gap <= 0 do return part
+		if gap < best do best_part, best = part, gap
+	}
+	return best_part
+}
+
+// The part nearest p, for a shot with no path.
+@(private = "file")
+nearest_label :: proc(joints: ^Joints, p, offset: utils.Vec2) -> int {
+	part, _ := label_at(joints, p, offset)
+	return part
+}
+
+// The part of the drawn body nearest p, and how far p is outside it (0 or less: in it).
+@(private = "file")
+label_at :: proc(joints: ^Joints, p, offset: utils.Vec2) -> (part: int, gap: f32) {
+	gap = max(f32)
+	for bone in BONES {
+		a, b := joints[bone.a] - offset, joints[bone.b] - offset
+		if bone.trim do a = pulled_in(a, b, bone.radius)
+		d := math.sqrt(point_segment_distance2(p, a, b)) - bone.radius
+		if d < gap do part, gap = bone.part, d
+	}
+	// the torso, hips to neck, its top stopping at the neck: the head is above it
+	hips := (joints[4] + joints[5]) / 2.0 - offset
+	neck := pulled_in((joints[9] + joints[10]) / 2.0 - offset, hips, TORSO_RADIUS)
+	if d := math.sqrt(point_segment_distance2(p, hips, neck)) - TORSO_RADIUS; d < gap do part, gap = 9, d
+	// the head's square, drawn from point 9 toward point 12, which follow the aim
+	up := joints[11] - joints[8]
+	toward := utils.normalize(up) if utils.length(up) > 0.0001 else utils.Vec2{0, -1}
+	center := joints[8] + toward * (HEAD_SIZE / 2.0) - offset
+	if d := utils.length(p - center) - HEAD_SIZE / 2.0; d < gap do part, gap = 11, d
+	return
+}
+
+// End a of a capsule a-b moved toward b by its radius, so its round end stops at a: at
+// most to the middle.
+@(private = "file")
+pulled_in :: proc(a, b: utils.Vec2, radius: f32) -> utils.Vec2 {
+	length := utils.length(b - a)
+	if length < 0.0001 do return a
+	return a + (b - a) * min(radius / length, 0.5)
+}
+
+// The squared distance from p to segment a-b.
+@(private = "file")
+point_segment_distance2 :: proc(p, a, b: utils.Vec2) -> f32 {
+	ab := b - a
+	length2 := ab.x * ab.x + ab.y * ab.y
+	t: f32 = 0
+	if length2 > 0.0001 do t = clamp(((p.x - a.x) * ab.x + (p.y - a.y) * ab.y) / length2, 0, 1)
+	d := p - (a + ab * t)
+	return d.x * d.x + d.y * d.y
+}
 
 // A weapon's damage modifier for a pose point: legs, chest or head.
 hitbox_modifier :: proc(stats: ^res.Weapon_Stats, part: int) -> f32 {
@@ -51,6 +151,16 @@ bullet_collide :: proc(world: ^World, resources: ^Resources, id: Bullet_Id, auth
 	bullet := &world.bullets[id]
 	saved_velocity, saved_pos, saved_old := bullet.velocity, bullet.pos, bullet.old_pos
 	nearest: f32 = -1 // the distance to what stopped it so far
+
+	// A grenade meets a body short of the ground it would bounce off this tick, rather than
+	// bouncing first and meeting the body, if at all, on the way back: one dropped fast on a
+	// crouching soldier's head went into the ground past it, and struck the legs coming up.
+	// Not through the ground: a body past it is left to the bounce.
+	if bullet.style == .Frag_Grenade {
+		ground, solid := first_solid(world, bullet)
+		body_collide(world, resources, id, utils.length(ground - saved_old) if solid else -1, authority, out)
+		if !bullet.active do return
+	}
 
 	if bullet.style == .Frag_Grenade do map_collide(world, resources, id, {bullet.pos.x, bullet.pos.y - 2}, authority, out)
 	wall := map_collide(world, resources, id, bullet.pos, authority, out)
@@ -142,6 +252,22 @@ ricochet :: proc(
 	probe := pos + utils.normalize(bullet.velocity) * (speed / 6.0)
 	if solid_at(world.polymap, probe, team, true) do bullet_end(world, id, out, pos)
 	return probe
+}
+
+// The first solid point along a grenade's path this tick, as map_collide steps it (from
+// where it is and from two above), touching nothing: whether there is one.
+@(private = "file")
+first_solid :: proc(world: ^World, bullet: ^Bullet) -> (point: utils.Vec2, solid: bool) {
+	team := world.soldiers[bullet.owner].team
+	steps := max(int(max(abs(bullet.velocity.x), abs(bullet.velocity.y)) / 2.5), 1)
+	step := bullet.velocity * (1.0 / f32(steps))
+	for i in 0 ..< steps {
+		for at in ([2]utils.Vec2{{bullet.pos.x, bullet.pos.y - 2}, bullet.pos}) {
+			p := at + step * f32(i)
+			if solid_at(world.polymap, p, team, true) do return p, true
+		}
+	}
+	return {}, false
 }
 
 // Steps along the velocity looking for a solid polygon: where it hit, or zero.
@@ -398,12 +524,13 @@ body_collide :: proc(
 		hit_point = point
 		hit = true
 		if target.vitals.cease_fire >= 0 do continue // spawn protection: it passes through
+		label := hit_label(&joints, start, end, melee) // the part of the drawn body it went into: what it is told to have hit
 
 		push: utils.Vec2
 		if !corpse && bullet.style != .Frag_Grenade {
 			push = bullet.velocity * stats.push
 		}
-		modifier := hitbox_modifier(stats, part)
+		modifier := hitbox_modifier(stats, label)
 
 		switch bullet.style {
 		case .Plain, .Shotgun, .Punch, .Knife:
@@ -412,7 +539,7 @@ body_collide :: proc(
 			speed := utils.length(bullet.velocity)
 			amount := speed * bullet.damage * modifier
 			kills := !corpse && live.vitals.health - hit_damage(world, Hit{shooter = bullet.owner, target = target_id, amount = amount}) < 1.0
-			wound(resources, bullet, target_id, amount, &joints, part, point, push, true, out)
+			wound(resources, bullet, target_id, amount, &joints, label, point, push, true, out)
 
 			// a punched enemy starts throwing its gun away
 			if bullet.style == .Punch && (live.team == .None || live.team != owner.team) {
@@ -442,22 +569,22 @@ body_collide :: proc(
 			// original, where a fast throw went off up to its speed short of the part, short
 			// of a kill
 			bullet.pos = contact
-			explode(world, resources, id, .Frag, target_id, part, authority, out)
+			explode(world, resources, id, .Frag, target_id, part, authority, out, label)
 			bullet_end(world, id, out)
 			return
 		case .M79, .LAW:
 			if corpse do return // rockets fly over corpses, and look no further
-			explode(world, resources, id, .M79, target_id, part, authority, out)
+			explode(world, resources, id, .M79, target_id, part, authority, out, label)
 			bullet.pos = point
 			bullet_end(world, id, out)
-			wound(resources, bullet, target_id, utils.length(bullet.velocity) * bullet.damage, &joints, part, point, push, false, out)
+			wound(resources, bullet, target_id, utils.length(bullet.velocity) * bullet.damage, &joints, label, point, push, false, out)
 			return
 		case .Thrown_Knife:
 			// The hit's sound on whoever it meets, and its blood unless a teammate's. Through a
 			// corpse it hits it once (last_hit), so it is heard once.
 			friendly := owner.team != .None && owner.team == live.team && target_id != bullet.owner
 			emit(out, Blood{target = target_id, pos = point, velocity = bullet.velocity, bloodless = friendly})
-			wound(resources, bullet, target_id, utils.length(bullet.velocity) * bullet.damage * 0.01, &joints, part, point, push, false, out)
+			wound(resources, bullet, target_id, utils.length(bullet.velocity) * bullet.damage * 0.01, &joints, label, point, push, false, out)
 			if corpse { // it goes through a corpse rather than sticking in it
 				bullet.last_hit = target_id
 				return

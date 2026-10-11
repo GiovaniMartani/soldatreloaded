@@ -98,11 +98,12 @@ corpse_tear :: proc(corpse: ^Corpse, soldier: ^Soldier) {
 	if vitals.health <= BRUTAL_DEATH_HEALTH {
 		corpse.torn += {CONSTRAINT_LEFT_LEG, CONSTRAINT_RIGHT_LEG, CONSTRAINT_NECK, CONSTRAINT_LEFT_ARM, CONSTRAINT_RIGHT_ARM}
 	} else if vitals.health <= HEADCHOP_DEATH_HEALTH {
-		// the 1-based skeleton point hit: the head comes off, or a leg at the hip
+		// the 1-based skeleton point hit: the head comes off, or a leg at the hip (its knee,
+		// or its foot, which hit_label tells apart)
 		switch vitals.death.part {
-		case 12: corpse.torn += {CONSTRAINT_NECK}
-		case 3:  corpse.torn += {CONSTRAINT_LEFT_LEG}
-		case 4:  corpse.torn += {CONSTRAINT_RIGHT_LEG}
+		case 12:   corpse.torn += {CONSTRAINT_NECK}
+		case 2, 3: corpse.torn += {CONSTRAINT_LEFT_LEG}
+		case 1, 4: corpse.torn += {CONSTRAINT_RIGHT_LEG}
 		}
 	}
 }
