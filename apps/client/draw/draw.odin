@@ -110,4 +110,5 @@ draw_world :: proc(art: ^Art, game: ^sim.Game, frame: ^Frame, sparks: ^Sparks, c
 	if !graphics.smooth_polygons do draw_edges(art, .Terrain)
 	draw_polygons(art, polymap, .Terrain)
 	draw_scenery(art, polymap, .In_Front)
+	if graphics.hitboxes do draw_hitboxes(game, frame)
 }

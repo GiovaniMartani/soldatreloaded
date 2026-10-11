@@ -17,7 +17,7 @@ import "../input"
 
 // A command said in the chat, where there is no server to take it: what a server does
 // for its players (apps/server/chat.odin's player_command), done here for me. The emotes
-// (/tabac, /smoke, /takeoff, /victory, /breakdown, /dab, /yeah, /piss, /mercy, /pwn), /kill and /brutalkill,
+// (/tabac, /smoke, /takeoff, /victory, /breakdown, /dab, /yeah, /piss, /mercy, /pwn), /kill and /brutalkill, /dummies,
 // /team, and /help; the votes are a server's.
 @(private = "package")
 offline_command :: proc(match: ^Match, text: string) {
@@ -34,20 +34,24 @@ offline_command :: proc(match: ^Match, text: string) {
 		case 2: match.team_asked = .Bravo
 		case:   hud.console_say(feed, hud.GAME_COLOR, "Teams: 1 alpha, 2 bravo")
 		}
+	case "dummies": // soldiers flying straight up and down beside me, to try shots on
+		dummies_command(match, rest)
 	case "votemap", "votekick", "yes", "no":
 		hud.console_say(feed, hud.GAME_COLOR, "There are no votes offline.")
 	case "help":
-		hud.console_say(feed, hud.GAME_COLOR, "/team <1 alpha, 2 bravo>  /kill  /brutalkill")
+		hud.console_say(feed, hud.GAME_COLOR, "/team <1 alpha, 2 bravo>  /kill  /brutalkill  /dummies <how many, 0 to 6>")
 		hud.console_say(feed, hud.GAME_COLOR, "Emotes: /tabac /smoke /takeoff /victory /breakdown /dab /yeah /piss /mercy /pwn")
 	case:
 		if !sim.soldier_taunt(me, word) do hud.console_say(feed, hud.GAME_COLOR, "Unknown command: /%s", word)
 	}
 }
 
-// How the game is played: Offline Play's limits over the game's own settings.
+// How the game is played: the servers' weapons, and Offline Play's limits, over the game's
+// own settings.
 @(private = "package")
 settings_from :: proc(offline: res.Offline_Settings) -> sim.Game_Settings {
 	s := sim.DEFAULT_GAME_SETTINGS
+	s.weapons = res.GATHER_WEAPONS // the weapons a server plays by with no weapons.ini of its own, so offline plays as online
 	if offline.time_limit > 0 do s.time_limit = offline.time_limit * 60 * sim.TICK_RATE
 	if offline.capture_limit > 0 do s.capture_limit = offline.capture_limit
 	return s
@@ -69,10 +73,12 @@ offline_step :: proc(match: ^Match, config: ^res.Client_Config) -> sim.Command {
 	game.world.soldiers[match.me].player.typing = prompt_up(match)
 	names := soldier_names(match)
 	ai.bots_commands(&match.bots, game, &names, &commands)
+	dummies_commands(match, &commands)
 	scoped := scoped_now(match)
 	draw.snapshot_take(&match.before, &game.world)
 	sim.game_tick(game, &commands)
 	ai.bots_hear(&match.bots, game)
+	dummies_keep(match)
 	track_shot(match, scoped)
 	if team, asked := match.team_asked.?; asked {
 		spawn(game, match.me, team, match.loadout)
@@ -105,6 +111,7 @@ round_start :: proc(match: ^Match) -> bool {
 	me := match.me
 	kept := game.world.soldiers[me].team // the team I was on, which I stay on
 	sim.game_start_round(game, match.map_name, seed = u64(time.time_to_unix_nano(time.now()))) or_return
+	match.dummies = {} // a new round lets them go, its world all new
 	draw.sparks_init(&match.sparks) // the last round's go with it (ChangeMap)
 	sim.clear_output(&game.output)
 

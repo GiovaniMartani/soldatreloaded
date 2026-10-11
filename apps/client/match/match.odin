@@ -85,6 +85,7 @@ Match :: struct {
 	suicide:    Maybe(bool), // offline, /kill or /brutalkill (true) said: my death, asked of the world at the next tick
 	bots:       ai.Bots,
 	profiles:   []res.Bot_Profile, // data/bots, the bots are dressed from
+	dummies:    [sim.MAX_PLAYERS]Dummy, // offline, /dummies: soldiers flying up and down to try shots on
 	chat:       Chat,
 	radio:      Radio,
 	speech:     [sim.MAX_PLAYERS]Speech, // what each said last, over their head
@@ -432,6 +433,7 @@ soldier_names :: proc(match: ^Match) -> (names: [sim.MAX_PLAYERS]string) {
 		for &brain, id in match.bots.brains {
 			if brain.active do names[id] = utils.short_string_text(&brain.profile.name)
 		}
+		dummies_name(match, &names)
 	case .Online, .Demo:
 		stream := &match.line.stream
 		for id in 0 ..< sim.MAX_PLAYERS {
