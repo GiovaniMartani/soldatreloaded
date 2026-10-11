@@ -275,23 +275,24 @@ old_vsync_bind :: proc(t: ^testing.T) {
 	testing.expect(t, !strings.contains(read(path), "r_swapeffect"), "and written so")
 }
 
-// A config with the old keys that toggled a setting, F5 (the frame rate and the line's
-// numbers) and F7 (the player names), has them let go; the same toggle on a key of the
-// player's own stays.
+// A config with keys that toggled the frame rate and the line's numbers or the player
+// names (F5 and F7, once the game's own, or a key of the player's) has them let go, as
+// those are the Options page's alone; the minimap's toggle stays.
 @(test)
 old_setting_toggles :: proc(t: ^testing.T) {
 	dir := scratch(t, "toggles")
 	defer os.remove_all(dir)
 	path := utils.temp_path(dir, "client.config.mjson")
-	write(path, "binds: {f5: \"toggle ui_info\", f7: \"toggle ui_playernames\", k: \"toggle ui_info\"}\n")
+	write(path, "binds: {f5: \"toggle ui_info\", f7: \"toggle ui_playernames\", k: \"Toggle  UI_Info\", f3: \"toggle ui_minimap\"}\n")
 	config := res.client_config_load(path)
 	defer res.client_config_destroy(config)
 	_, f5 := res.client_config_bind(config, "f5")
 	_, f7 := res.client_config_bind(config, "f7")
-	own, _ := res.client_config_bind(config, "k")
-	testing.expect(t, !f5 && !f7, "f5 and f7 let go")
-	testing.expect_value(t, own, "toggle ui_info")
-	testing.expect(t, !strings.contains(read(path), "\"f5\""), "and written so")
+	_, own := res.client_config_bind(config, "k")
+	minimap, _ := res.client_config_bind(config, "f3")
+	testing.expect(t, !f5 && !f7 && !own, "every key of theirs let go")
+	testing.expect_value(t, minimap, "toggle ui_minimap")
+	testing.expect(t, !strings.contains(read(path), "ui_info") && !strings.contains(read(path), "ui_playernames"), "and written so")
 }
 
 // A config that still names the lobby of before is moved to the lobby now, the client's

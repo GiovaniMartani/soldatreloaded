@@ -356,7 +356,7 @@ client_config_load :: proc(path: string, old_path := "") -> ^Client_Config {
 		unbound := vsync_unbound(config)
 		if unbound do log.infof("%s: vsync is the graphics menu's alone now, its key let go (F4 takes the screenshot)", path)
 		dropped_keys := settings_unbound(config)
-		if dropped_keys do log.infof("%s: F5 and F7 no longer toggle the frame rate and the player names, which are the Options page's", path)
+		if dropped_keys do log.infof("%s: the keys that toggled the frame rate or the player names let go: they are the Options page's", path)
 		if from != path || carried || unbound || dropped_keys do client_config_save(config, path)
 		if dropped > 0 {
 			config.problem = fmt.aprintf("%d settings weren't understood and are at their defaults; the file as it was is %s.bak", dropped, from, allocator = arena)
@@ -421,18 +421,22 @@ vsync_unbound :: proc(config: ^Client_Config) -> (unbound: bool) {
 	}
 }
 
-// The game's keys of before that turned a setting on or off (F5 the frame rate and the
-// line's numbers, F7 the player names), let go where they are still so: a stray press
-// changed a setting the Options page keeps, and the config kept it. True if any were.
+// The keys bound to toggle the frame rate and the line's numbers (`toggle ui_info`, F5
+// once a default) or the player names (`toggle ui_playernames`, F7), let go: they are
+// the Options page's settings, toggled by no key, and a stray press changed one that the
+// config then kept. True if any were.
 @(private = "file")
-settings_unbound :: proc(config: ^Client_Config) -> (unbound: bool) {
-	OLD :: [?][2]string{{"f5", "toggle ui_info"}, {"f7", "toggle ui_playernames"}}
-	for old in OLD {
-		if config.binds[old[0]] != old[1] do continue
-		delete_key(&config.binds, old[0])
-		unbound = true
+settings_unbound :: proc(config: ^Client_Config) -> bool {
+	gone := make([dynamic]string, context.temp_allocator)
+	for key, command in config.binds {
+		word, _, setting := strings.partition(strings.trim_space(command), " ")
+		setting = strings.trim_space(setting)
+		if strings.equal_fold(word, "toggle") && (strings.equal_fold(setting, "ui_info") || strings.equal_fold(setting, "ui_playernames")) {
+			append(&gone, key)
+		}
 	}
-	return
+	for key in gone do delete_key(&config.binds, key)
+	return len(gone) > 0
 }
 
 // The command a key is bound to; none for a key the player has let go.
