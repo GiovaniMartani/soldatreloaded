@@ -80,7 +80,7 @@ Match :: struct {
 	hud:        hud.Hud,
 	limbo:      Limbo,
 	weapons_up: bool, // the weapons menu was up as the last frame's keys were read
-	loadout:    sim.Loadout, // the weapons menu's picks this round: no primary (the fists) till one is, the config's secondary
+	loadout:    sim.Loadout, // the weapons menu's picks: no primary (the fists) till one is this round; the secondary last picked, the config's till one is
 	team_asked: Maybe(res.Team), // offline, chosen in the team menu, for the next tick to place me on
 	suicide:    Maybe(bool), // offline, /kill or /brutalkill (true) said: my death, asked of the world at the next tick
 	bots:       ai.Bots,
@@ -305,6 +305,7 @@ match_open :: proc(match: ^Match) {
 	hud.hud_init(&match.hud, match.mod)
 	match.zone, _ = timezone.region_load("local")
 	match.chat.big_scroll = 0
+	match.loadout = {.Punch, match.config.player.secondary_weapon} // the settings' secondary, as I join; my picks after
 }
 
 // The view on the world as it begins: the camera on me, the mouse the game's, and the

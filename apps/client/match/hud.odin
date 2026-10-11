@@ -204,7 +204,7 @@ menu_choice :: proc(match: ^Match, config: ^res.Client_Config, sounds: ^sound.So
 		me.loadout.primary = a.weapon
 		if now do me.arsenal.primary = sim.weapon_state(&match.game.resources, a.weapon)
 	case hud.Pick_Secondary:
-		match.loadout.secondary = a.weapon // this round's; the settings' stays as the settings say
+		match.loadout.secondary = a.weapon // every round's after, while I stay; the settings' stays as the settings say
 		me.loadout.secondary = a.weapon
 		if now do me.arsenal.secondary = sim.weapon_state(&match.game.resources, a.weapon)
 	case hud.Pick_Team: // offline I am placed on it; online the server places me, or among the watchers
@@ -296,9 +296,9 @@ hud_round_ended :: proc(match: ^Match) {
 
 // A new round: the last one's scoreboard down, and the weapons menu's comings and
 // goings begun again, and its picks: no primary, as the original's SelWeapon at a map
-// change, and the config's secondary; the team, asked once a join, not asked again.
+// change, and the secondary last picked kept; the team, asked once a join, not asked again.
 hud_new_round :: proc(match: ^Match) {
-	match.loadout = {.Punch, match.config.player.secondary_weapon}
+	match.loadout.primary = .Punch
 	match.hud.scoreboard = false
 	match.hud.stats = false
 	match.limbo = {team_asked = match.limbo.team_asked}

@@ -115,11 +115,10 @@ round_start :: proc(match: ^Match) -> bool {
 	draw.sparks_init(&match.sparks) // the last round's go with it (ChangeMap)
 	sim.clear_output(&game.output)
 
-	player := config.player
 	soldier := &game.world.soldiers[me]
 	soldier.player.look = look_of(config)
 	my_team := kept if kept == .Alpha || kept == .Bravo else .Alpha
-	match.loadout = {.Punch, player.secondary_weapon}
+	match.loadout.primary = .Punch // the secondary the last picked, the config's at the start
 	spawn(game, me, my_team, match.loadout)
 	// the bots by team, alpha's first; the slots after them are let go
 	counts := match.bot_counts
