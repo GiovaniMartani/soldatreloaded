@@ -8,7 +8,9 @@ import "core:strings"
 import lua "vendor:lua/5.4"
 
 import "../../core/game"
+import net "../../core/network"
 import "../../core/utils"
+import "lists"
 
 // The `server` table: what the script may ask of the game and do to it
 // (docs/scripting.md, "What the script may do"). Every call finds its Script in the
@@ -61,11 +63,20 @@ push_name :: proc(L: ^lua.State, sv: ^Server, slot: game.Soldier_Id) {
 }
 
 // A player's table pushed: its slot, name, team, tally, ping, health, and whether it is
-// a bot, alive and watching.
+// a bot, alive and watching; and a person's address and hardware ID, which a bot hasn't.
 @(private = "file")
 push_player :: proc(L: ^lua.State, sv: ^Server, slot: game.Soldier_Id) {
 	soldier := &sv.game.world.soldiers[slot]
-	lua.createtable(L, 0, 11)
+	player := &sv.players[slot]
+	lua.createtable(L, 0, 13)
+	if player.peer != nil {
+		push_string(L, lists.address_text(net.peer_address(player.peer)))
+		lua.setfield(L, -2, "ip")
+	}
+	if hwid := utils.short_string_text(&player.hwid); hwid != "" {
+		push_string(L, hwid)
+		lua.setfield(L, -2, "hwid")
+	}
 	lua.pushinteger(L, lua.Integer(slot))
 	lua.setfield(L, -2, "slot")
 	push_name(L, sv, slot)

@@ -66,8 +66,10 @@ in seconds, `scores` (`{alpha = n, bravo = n}`), `winner` (`"alpha"` or `"bravo"
 
 A player table has `slot`, `name`, `team` (`"none"`, `"alpha"`, `"bravo"`,
 `"charlie"`, `"delta"` or `"spectator"`), `kills`, `deaths`, `flags`, `ping`, `health`,
-and `bot`, `alive` and `spectator` as booleans. Slots count from 0 and are what the
-players are known by on the wire; a slot is reused once its player has left.
+and `bot`, `alive` and `spectator` as booleans; and a person's `ip` (`"1.2.3.4"`) and
+`hwid` (its machine's hardware ID, eleven hex digits), as the bans know them: a bot has
+neither, and a client that sent no hardware ID has no `hwid`. Slots count from 0 and are
+what the players are known by on the wire; a slot is reused once its player has left.
 
 ## What the script may do
 

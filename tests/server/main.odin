@@ -8,6 +8,7 @@ package server_test
 //   odin test tests/server -define:ODIN_TEST_THREADS=1
 
 import "core:fmt"
+import "core:os"
 import sa "core:container/small_array"
 import "core:slice"
 import "core:testing"
@@ -30,6 +31,7 @@ Test_Client :: struct {
 	link:          net.Link,
 	version:       u16,
 	name:          string,
+	hwid:          string, // said in the Hello; none if ""
 	connected:     bool,
 	welcomed:      bool,
 	denied:        bool,
@@ -68,7 +70,7 @@ client_pump :: proc(c: ^Test_Client) {
 		case .None:
 		case .Connect:
 			c.connected = true
-			hello := net.Msg_Hello{version = c.version, name = utils.short_string(24, c.name), primary = .AK74, secondary = .Knife}
+			hello := net.Msg_Hello{version = c.version, name = utils.short_string(24, c.name), primary = .AK74, secondary = .Knife, hwid = utils.short_string(11, c.hwid)}
 			net.net_send_message(c.link.peer, .Hello, net.msg_hello, &hello)
 		case .Disconnect:
 			c.closed = true
@@ -498,4 +500,39 @@ voted_map_taken :: proc(t: ^testing.T) {
 	testing.expect_value(t, name, "ctf_Ash")
 	_, again := server.vote_take_map(sv)
 	testing.expect(t, !again, "and is taken once")
+}
+
+// A script sees a person's address and hardware ID in its table, as the bans know them;
+// a bot has neither.
+@(test)
+script_sees_address :: proc(t: ^testing.T) {
+	testing.expect(t, net.net_init())
+	defer net.net_shutdown()
+	sv := new(server.Server)
+	defer free(sv)
+	config: res.Server_Config
+	testing.expect(t, open_server(sv, &config))
+	defer server.server_destroy(sv)
+
+	c := new(Test_Client)
+	defer free(c)
+	testing.expect(t, client_open(c, "Alice"))
+	c.hwid = "0123456789A"
+	defer client_close(c)
+	welcomed := pump_until(sv, {c}, proc(cs: []^Test_Client) -> bool { return cs[0].welcomed })
+	if !testing.expect(t, welcomed, "Alice joins") do return
+	_, added := server.server_add_bot(sv, .Bravo)
+	testing.expect(t, added, "a bot joins")
+
+	s := new(server.Script)
+	defer free(s)
+	s.quiet = true
+	path := fmt.tprintf("%s/soldatreloaded_server_test_script.lua", os.get_env("TEMP", context.temp_allocator) if ODIN_OS == .Windows else "/tmp")
+	utils.write_file(path, transmute([]byte)string("-- the API alone\n"))
+	defer os.remove(path)
+	if !testing.expect(t, server.script_open(s, sv, path), "a script state") do return
+	defer server.script_close(s)
+	alice := fmt.tprintf("local p = server.player(%d); assert(p.ip == '127.0.0.1' and p.hwid == '0123456789A')", c.welcome.slot)
+	testing.expect(t, server.script_run(s, alice, "check"), "Alice's address and hardware ID")
+	testing.expect(t, server.script_run(s, "for _, p in ipairs(server.players()) do if p.bot then assert(p.ip == nil and p.hwid == nil) end end", "check"), "the bot has neither")
 }
