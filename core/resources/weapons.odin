@@ -110,7 +110,9 @@ PASSED_KEYS := [?]string{"BulletStyle", "Recoil", "NoCollision"}
 
 // The GatherWM weapons mod (1.7.1v16[Y]), the one gathers play, as its weapons.ini has
 // it: what a server plays by where its weapons.ini says nothing. The thrown knife's is
-// left for the game to work out from the knife's.
+// left for the game to work out from the knife's. The grenade's modifiers are our own, where
+// GatherWM's are all 1: going off at the knees or below it takes all of it, above them
+// 63% (a frag's modifier goes by the blast's height on the body: blast_height_modifier).
 GATHER_WEAPONS :: Weapon_Table {
 	//                damage  fire ammo reload speed  startup bink moveacc spread push     inherit head   chest  legs
 	.Punch         = {330,    6,   1,   3,     5,     0,      0,   0,      0,     0,       0,      1.15,  1,     0.9},
@@ -128,7 +130,7 @@ GATHER_WEAPONS :: Weapon_Table {
 	.Knife         = {2310,   6,   1,   3,     6,     0,      0,   0,      0,     0.12,    0,      1.15,  1,     0.98},
 	.Chainsaw      = {50,     2,   200, 110,   8,     0,      0,   0,      0,     0.0028,  0,      1.15,  1,     0.9},
 	.LAW           = {2150,   6,   1,   260,   23,    11,     0,   0,      0,     0.028,   0.5,    1.15,  1,     0.9},
-	.Frag_Grenade  = {1505,   80,  1,   20,    5,     0,      0,   0,      0,     0,       1,      1,     1,     1},
+	.Frag_Grenade  = {1505,   80,  1,   20,    5,     0,      0,   0,      0,     0,       1,      0.63,  0.63,  1},
 	.Thrown_Knife  = {},
 }
 

@@ -126,6 +126,7 @@ blast_soldier :: proc(
 		}
 	}
 	modifier := hitbox_modifier(stats, part)
+	if bullet.style == .Frag_Grenade do modifier = blast_height_modifier(stats, &joints, bullet.pos)
 
 	// a grenade's part struck directly is measured where it was met, two pixels off as
 	// the sprites sit (body_collide): a blast from its edge is then always a kill
@@ -143,6 +144,18 @@ blast_soldier :: proc(
 
 	amount: f32 = (1.0 / (distance + 1.0)) * stats.damage * modifier if soldier.vitals.cease_fire < 0 else 0
 	emit(out, Hit{shooter = bullet.owner, target = id, weapon = bullet.weapon, amount = amount, part = 0, pos = joints[part], push = a * -1.0, impact = a, spray = true})
+}
+
+// A frag's hitbox modifier, by how high on the body it went off rather than by the part
+// it met: the parts' circles overlap, the hips' reaching down past the knees nearly to
+// the ground, so the part met first says little of where it struck. At the knees or
+// below, the legs' modifier; from the neck up, the head's; the chest's between.
+@(private = "file")
+blast_height_modifier :: proc(stats: ^res.Weapon_Stats, joints: ^Joints, pos: utils.Vec2) -> f32 {
+	knees := (joints[2].y + joints[3].y) / 2.0
+	if pos.y >= knees do return stats.leg_modifier // y grows downward
+	if pos.y <= joints[10].y do return stats.head_modifier
+	return stats.chest_modifier
 }
 
 // The dead: every point in reach is thrown, and the body takes a wound by the last of
