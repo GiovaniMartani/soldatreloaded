@@ -22,6 +22,7 @@ package hud
 //   draw_cursor.odin      the crosshair, the menus' pointer, my arrow
 //   draw_feed.odin        the big message, kill feed, console, respawn count, FPS, last shot
 //   draw_chat.odin        the prompt, what is said over heads, the vote's box, the radio
+//   draw_emotes.odin      the emote wheel
 //   draw_status.odin      my ping, whom I watch, the time left, the demo recorded or played
 //   draw_scoreboard.odin  the scoreboard, my weapon stats, who won
 //   draw_minimap.odin     the minimap
@@ -107,6 +108,7 @@ hud_draw :: proc(u: ^ui.Ui, hud: ^Hud, data: ^Hud_Data, minimap: ^draw.Minimap) 
 	if playing do draw_respawn(u, art, mine)
 	draw_vote(u, data)
 	if data.radio.open && !escape do draw_radio(u, art, data, hud.scoreboard || hud.stats)
+	if data.emotes.open && !escape do draw_emote_wheel(u, art, data)
 	draw_prompt(u, data)
 	draw_kill_feed(u, art, feed, data.kill_log, kill_feed_top(data), hud.scoreboard, typing)
 	if me.active {

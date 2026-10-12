@@ -20,7 +20,8 @@ CONTROLS := [?]Control {
 	{"Prone", "+prone"}, {"Jet", "+jet"}, {"Fire", "+fire"}, {"Throw grenade", "+throw"},
 	{"Reload", "+reload"}, {"Change weapon", "+change"}, {"Throw weapon", "+drop"}, {"Throw flag", "+flagthrow"},
 	{"Chat", "chat"}, {"Team chat", "teamchat"}, {"Command", "cmd"},
-	{"Radio", "+radio"}, {"Weapons menu", "weaponsmenu"}, {"Team menu", "teammenu"}, {"Scoreboard", "fragsmenu"},
+	{"Radio", "+radio"}, {"Emote wheel", "+emotes"},
+	{"Weapons menu", "weaponsmenu"}, {"Team menu", "teammenu"}, {"Scoreboard", "fragsmenu"},
 	{"Weapon stats", "statsmenu"}, {"Minimap", "toggle ui_minimap"},
 	{"Fullscreen", "togglewindow"}, {"Screenshot", "screenshot"}, {"Record demo", "togglerecord"},
 	{"Vote yes", "say /yes"}, {"Vote no", "say /no"},
@@ -38,10 +39,10 @@ Control_Group :: struct {
 CONTROL_GROUPS := [?]Control_Group {
 	{"MOVEMENT", 0, 6, 0},
 	{"COMBAT", 6, 6, 0},
-	{"TALK", 12, 4, 1},
-	{"MENUS", 16, 5, 1},
-	{"DISPLAY", 21, 3, 1},
-	{"VOTES", 24, 2, 0}, // last in one column; under COMBAT in two
+	{"TALK", 12, 5, 1},
+	{"MENUS", 17, 5, 1},
+	{"DISPLAY", 22, 3, 1},
+	{"VOTES", 25, 2, 0}, // last in one column; under COMBAT in two
 }
 
 page_controls :: proc(menu: ^Menu) {

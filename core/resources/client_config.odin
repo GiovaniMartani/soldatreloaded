@@ -325,6 +325,7 @@ DEFAULT_BINDS := [?][2]string {
 	{"leftarrow", "demo_tick_r -600"},
 	{"rightarrow", "demo_tick_r 600"},
 	{"v", "+radio"},
+	{"mouse3", "+emotes"},
 	{"t", "chat"},
 	{"y", "teamchat"},
 	{"slash", "cmd"},

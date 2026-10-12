@@ -89,6 +89,7 @@ Match :: struct {
 	dummies:    [sim.MAX_PLAYERS]Dummy, // offline, /dummies: soldiers flying up and down to try shots on
 	chat:       Chat,
 	radio:      Radio,
+	emote_wheel: Emote_Wheel,
 	speech:     [sim.MAX_PLAYERS]Speech, // what each said last, over their head
 	vote:       Vote_Seen,
 	watch:      Watch,
@@ -333,7 +334,9 @@ keys :: proc(match: ^Match, config: ^res.Client_Config, sounds: ^sound.Sound) {
 	// alone leaves the radio its calls' plain digits
 	weapons_only := match.hud.menus.open == {.Weapons}
 	radio := match.radio.open && !typing && (!menu || (weapons_only && !config.radio.weapons_first))
+	before := match.input.cursor // the aim, held while the emote wheel is up
 	actions := input.input_poll(&match.input, config, match.camera.view, menu, RADIO_CALLS if radio else 0, typing, controls)
+	emote_wheel_keys(match, config, before)
 	menus_follow(match)
 	radio_took := false
 	if radio {

@@ -109,6 +109,8 @@ hud_data :: proc(match: ^Match, config: ^res.Client_Config) -> (data: hud.Hud_Da
 			reason  = utils.short_string_text(&vote.reason),
 		}
 	}
+	data.emotes = {open = match.emote_wheel.open, pointer = match.emote_wheel.pointer, pick = -1}
+	if pick, picked := hud.emote_pick(match.emote_wheel.pointer); picked do data.emotes.pick = pick
 	data.radio.open = match.radio.open
 	data.radio.call = match.radio.call
 	calls := radio_calls(config)

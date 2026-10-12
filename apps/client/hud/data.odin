@@ -43,6 +43,7 @@ Hud_Data :: struct {
 	prompt:       Prompt,
 	vote:         Vote_Box,
 	radio:        Radio_Menu,
+	emotes:       Emote_Wheel, // up while its key is held
 
 	// the line, and demos
 	online:       bool, // on a server: the line's quality is shown
@@ -160,4 +161,11 @@ Demo_Line :: struct {
 	paused:     bool,
 	seeking:    bool,
 	speed:      f32,
+}
+
+// The emote wheel, up: where the mouse points from its middle, and the emote it picks.
+Emote_Wheel :: struct {
+	open:    bool,
+	pointer: [2]f32, // in units from the wheel's middle
+	pick:    int,    // of EMOTE_LABELS; -1 for none
 }

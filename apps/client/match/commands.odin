@@ -29,7 +29,7 @@ import "../hud"
 @(private = "file", rodata)
 COMMANDS := [?]string {
 	"escmenu", "teammenu", "weaponsmenu", "fragsmenu", "statsmenu", "toggle", "togglewindow",
-	"chat", "teamchat", "cmd", "say", "say_team", "votemap", "votekick", "+radio", "-radio", "radio", "emote",
+	"chat", "teamchat", "cmd", "say", "say_team", "votemap", "votekick", "+radio", "-radio", "radio", "emote", "+emotes", "-emotes",
 	"mute", "unmute", "muteall", "muteteam", "muteenemies", "mutespecs", "mutes", "freecam",
 	"record", "stop", "togglerecord", "playdemo", "demo_pause", "demo_fast", "demo_tick", "demo_tick_r",
 	"connect", "disconnect", "quit", "netstats", "screenshot",
@@ -82,6 +82,9 @@ command_run :: proc(match: ^Match, line: string) {
 	case "+radio":
 		radio_toggle(match)
 	case "-radio":
+	case "+emotes": // the wheel, up while the key is held (emote_wheel_keys)
+		emote_wheel_open(match)
+	case "-emotes":
 	case "radio":
 		call, place, words := radio_args(rest)
 		if call == 0 do usage(match, "radio <call> <place> [words], 1 to %d each", RADIO_CALLS)

@@ -278,3 +278,14 @@ input_release_all :: proc(input: ^Input) {
 	input.held = {}
 	input.pressed = {}
 }
+
+// Whether a key bound to `command` is down, with its modifier if it has one: a held
+// command's, as the emote wheel's is open while its key is.
+input_command_held :: proc(config: ^res.Client_Config, command: string) -> bool {
+	for name, bound in config.binds {
+		if strings.trim_space(bound) != command do continue
+		modifier, key, is_key := key_parse(name)
+		if is_key && modifier_down(modifier) && key_down(key) do return true
+	}
+	return false
+}

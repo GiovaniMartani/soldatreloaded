@@ -12,6 +12,7 @@ import network "../../../core/network"
 import res "../../../core/resources"
 import "../../../core/utils"
 import "../hud"
+import "../input"
 import "../online"
 import "../sound"
 
@@ -497,4 +498,47 @@ emote_names :: proc() -> string {
 	names := make([dynamic]string, context.temp_allocator)
 	for taunt in sim.TAUNT_NAMES do if taunt != "" do append(&names, taunt)
 	return strings.join(names[:], " | ", context.temp_allocator)
+}
+
+// ---------------------------------------------------------------------------------
+// The emote wheel
+
+// Up while its key (+emotes) is held: the mouse points at an emote from the wheel's
+// middle, the aim held still meanwhile, and the key let go plays the one pointed at, as
+// /emote does. Let go in the middle (hud.emote_pick), nothing.
+Emote_Wheel :: struct {
+	open:    bool,
+	pointer: [2]f32, // the mouse's way from the middle since it came up, in view units, at most EMOTE_REACH
+}
+
+EMOTE_REACH :: 36.0 // the pointer kept this near the middle: turning it to another emote is a short move
+
+// The emotes, in the wheel's order from its top, clockwise (hud.EMOTE_LABELS): the taunts
+// that have a name.
+EMOTES := [?]string{"tabac", "smoke", "takeoff", "victory", "piss", "mercy", "pwn", "breakdown", "dab", "yeah"}
+
+// +emotes: the wheel up; not while typing, nor over a menu, nor in a demo, nor for a
+// spectator.
+emote_wheel_open :: proc(match: ^Match) {
+	me := &match.game.world.soldiers[match.me]
+	if match.mode == .Demo || prompt_up(match) || hud.menus_any_open(&match.hud.menus) || !me.active || me.team == .Spectator do return
+	match.emote_wheel = {open = true}
+}
+
+// Each frame, after the keys are read: the mouse's motion moves the pointer, not the aim
+// (the cursor put back where it was, `before`); and with the key let go, the emote
+// pointed at played and the wheel down.
+emote_wheel_keys :: proc(match: ^Match, config: ^res.Client_Config, before: [2]f32) {
+	w := &match.emote_wheel
+	if !w.open do return
+	if prompt_up(match) || hud.menus_any_open(&match.hud.menus) {
+		w^ = {}
+		return
+	}
+	if rl.IsWindowFocused() do w.pointer += rl.GetMouseDelta() * config.controls.sensitivity
+	if reach := utils.length(w.pointer); reach > EMOTE_REACH do w.pointer *= EMOTE_REACH / reach
+	match.input.cursor = before
+	if input.input_command_held(config, "+emotes") do return
+	if pick, picked := hud.emote_pick(w.pointer); picked do emote(match, EMOTES[pick])
+	w^ = {}
 }
