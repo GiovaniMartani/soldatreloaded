@@ -7,23 +7,31 @@ package main
 // Typing isn't touched: the system makes a letter upper case itself. GLFW's own calls,
 // from the raylib library that has it.
 
+// An Odin installed without raylib's static library (Arch's package has the shared one
+// alone, which keeps GLFW's calls to itself) leaves the lock keys as raylib has them.
 when ODIN_OS == .Windows {
-	foreign import raylib_glfw "vendor:raylib/windows/raylib.lib"
+	RAYLIB_GLFW :: ODIN_ROOT + "vendor/raylib/windows/raylib.lib"
 } else when ODIN_OS == .Linux {
-	foreign import raylib_glfw "vendor:raylib/linux/libraylib.a"
+	RAYLIB_GLFW :: ODIN_ROOT + "vendor/raylib/linux/libraylib.a"
 } else {
-	foreign import raylib_glfw "vendor:raylib/macos/libraylib.a"
+	RAYLIB_GLFW :: ODIN_ROOT + "vendor/raylib/macos/libraylib.a"
 }
 
-@(default_calling_convention = "c")
-foreign raylib_glfw {
-	glfwGetCurrentContext :: proc() -> rawptr ---
-	glfwSetInputMode :: proc(window: rawptr, mode, value: i32) ---
-}
+when #exists(RAYLIB_GLFW) {
+	foreign import raylib_glfw { RAYLIB_GLFW }
 
-GLFW_LOCK_KEY_MODS :: 0x00033004
+	@(default_calling_convention = "c")
+	foreign raylib_glfw {
+		glfwGetCurrentContext :: proc() -> rawptr ---
+		glfwSetInputMode :: proc(window: rawptr, mode, value: i32) ---
+	}
 
-// After the window is made, on its thread.
-lock_keys_plain :: proc() {
-	if window := glfwGetCurrentContext(); window != nil do glfwSetInputMode(window, GLFW_LOCK_KEY_MODS, 0)
+	GLFW_LOCK_KEY_MODS :: 0x00033004
+
+	// After the window is made, on its thread.
+	lock_keys_plain :: proc() {
+		if window := glfwGetCurrentContext(); window != nil do glfwSetInputMode(window, GLFW_LOCK_KEY_MODS, 0)
+	}
+} else {
+	lock_keys_plain :: proc() {}
 }
