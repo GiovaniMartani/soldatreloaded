@@ -347,3 +347,18 @@ weapons_ini :: proc(t: ^testing.T) {
 
 	testing.expect(t, res.weapon_by_section("XM214 MINIGUN") == res.Weapon.Minigun && res.weapon_by_section("Thrown Knife") == nil, "a weapon by its section")
 }
+
+// A new config's volume is 50, the original's default; one already written keeps its own.
+@(test)
+default_volume :: proc(t: ^testing.T) {
+	dir := scratch(t, "volume")
+	defer os.remove_all(dir)
+	fresh := res.client_config_load(utils.temp_path(dir, "new.config.mjson"))
+	defer res.client_config_destroy(fresh)
+	testing.expect_value(t, fresh.sound.volume, 50)
+	path := utils.temp_path(dir, "client.config.mjson")
+	write(path, "sound: {volume: 18}\n")
+	kept := res.client_config_load(path)
+	defer res.client_config_destroy(kept)
+	testing.expect_value(t, kept.sound.volume, 18)
+}

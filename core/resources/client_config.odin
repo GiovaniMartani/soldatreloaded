@@ -282,7 +282,7 @@ DEFAULT_CLIENT_CONFIG := Client_Config {
 		console_lines   = 6,
 		discord         = true,
 	},
-	sound = {volume = 18},
+	sound = {volume = 50},
 	network = {server = "127.0.0.1:23073", lobby = LOBBY_URL, mods_index = MODS_INDEX_URL, smooth = 100},
 	offline = {time_limit = 15, capture_limit = 10, bots = {difficulty = 100, chat = true}},
 	radio = {

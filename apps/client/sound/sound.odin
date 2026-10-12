@@ -34,6 +34,7 @@ package sound
 // client: audio/audio.c.
 
 import "core:log"
+import "core:math"
 import "core:mem"
 import "core:strings"
 
@@ -103,12 +104,12 @@ sound_destroy :: proc(s: ^Sound) {
 	s^ = {}
 }
 
-// The settings, which may change at any time: the volume (0 to 100, through the
-// original's curve: 50 is a quarter of the way up, and quiet enough there), the effects,
-// and whether the weather, and so its wind, is on.
+// The settings, which may change at any time: the volume (0 to 100) through the
+// original's curve (ScaleVolumeSetting: 50 is an eighth of the way up, and 100 the whole
+// of it), the effects, and whether the weather, and so its wind, is on.
 sound_configure :: proc(s: ^Sound, config: ^res.Client_Config) {
-	v := clamp(f32(config.sound.volume) / 100, 0, 1)
-	s.volume = v * v * 0.48
+	v := f32(clamp(config.sound.volume, 0, 100))
+	s.volume = (math.pow(f32(1.0404), v) - 1) / (1.0404 - 1) / 1275
 	s.battle = config.sound.battle_effects
 	s.explosions = config.sound.explosion_effects
 	s.weather = config.graphics.weather
