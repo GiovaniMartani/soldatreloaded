@@ -67,6 +67,7 @@ Match :: struct {
 	map_name:   string, // the one being played offline, which the menu is given back
 	bot_teams:  [sim.MAX_PLAYERS]res.Team, // offline, each slot's bot's team, .None for none: the config's at the start, then /addbot's and /kick's
 	map_asked:  string, // offline, /map's, which map_name is while it plays; its own copy
+	art_map:    string, // the map whose art is loaded, with its folders of art: art_reload's, which a restart reloads nothing for
 	mod:        res.Mod, // the art of each next map is the mod's
 	art:        draw.Art,
 	camera:     draw.Camera, // as the ticks move it
@@ -155,8 +156,7 @@ match_start :: proc(match: ^Match, maps: []string, config: ^res.Client_Config, m
 		match_end(match)
 		return false
 	}
-	dirs := map_art_dirs(match)
-	draw.art_load(&match.art, mod, &match.game.polymap, dirs[:])
+	art_reload(match) // the first map's, and the sprites
 	view_open(match, sounds)
 	return true
 }
@@ -213,6 +213,7 @@ match_end :: proc(match: ^Match) {
 		free(match.game)
 	}
 	delete(match.map_asked)
+	delete(match.art_map)
 	for name in match.maps do delete(name)
 	delete(match.maps)
 	delete(match.record.name)
@@ -413,12 +414,25 @@ shown :: proc(match: ^Match, config: ^res.Client_Config, sounds: ^sound.Sound) {
 	}
 }
 
-// The art of the map now played, drawn anew, its minimap with it.
+// The art of the map now played, its minimap with it: the map's own loaded anew, the
+// sprites kept, which are the mods' whatever the map (loading those again, heavy mods
+// took seconds a map change). Nothing anew for the map already loaded, restarted; the
+// sprites too if there are none yet, the first map of a join.
 @(private = "package")
 art_reload :: proc(match: ^Match) {
-	draw.art_destroy(&match.art)
 	dirs := map_art_dirs(match)
-	draw.art_load(&match.art, match.mod, &match.game.polymap, dirs[:])
+	name := match.map_name if match.mode == .Offline else utils.short_string_text(&match.line.map_name)
+	key := strings.join({name, dirs[0], dirs[1]}, "\x00", context.temp_allocator)
+	loaded := match.art.sprite_atlas.side != 0
+	if loaded && key == match.art_map do return
+	delete(match.art_map)
+	match.art_map = strings.clone(key)
+	if loaded {
+		draw.art_map_destroy(&match.art)
+		draw.art_map_load(&match.art, match.mod, &match.game.polymap, dirs[:])
+	} else {
+		draw.art_load(&match.art, match.mod, &match.game.polymap, dirs[:])
+	}
 	draw.minimap_destroy(&match.minimap) // drawn again for the new map
 }
 

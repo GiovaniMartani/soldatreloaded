@@ -36,8 +36,16 @@ Art :: struct {
 }
 
 // The art for `polymap`: the mod's, the map's own in `map_dirs` (its folders of art, as it
-// shipped or was downloaded), and Classic's, in that order (res.map_image).
+// shipped or was downloaded), and Classic's, in that order (res.map_image). The map's
+// (art_map_load) and the sprites (art_sprites_load), which a match loads once: a new
+// map needs only its own.
 art_load :: proc(art: ^Art, mod: res.Mod, polymap: ^res.Poly_Map, map_dirs: []string = nil) {
+	art_map_load(art, mod, polymap, map_dirs)
+	art_sprites_load(art, mod)
+}
+
+// The map's own art: its texture, its polygons' edges and its scenery.
+art_map_load :: proc(art: ^Art, mod: res.Mod, polymap: ^res.Poly_Map, map_dirs: []string = nil) {
 	// a texture of its own: the polygons' texture coordinates run past 0..1, and it repeats
 	if pixels, found := res.map_texture_load(mod, polymap, map_dirs); found {
 		art.map_texture = texture_upload(pixels)
@@ -52,29 +60,38 @@ art_load :: proc(art: ^Art, mod: res.Mod, polymap: ^res.Poly_Map, map_dirs: []st
 	defer res.scenery_destroy(images)
 	art.scenery_atlas = {side = atlas_side_for(images)}
 	art.scenery = atlas_add_all(&art.scenery_atlas, images)
+	// Mipmapped as the original's: the map's texture, above, without a bias, as the
+	// original draws its polygons; the scenery and the sprites a touch sharp. The HUD's
+	// art, the original's interface, has none.
+	atlas_mipmap(&art.scenery_atlas)
+}
 
+// The sprites, the mod's whatever the map: the soldiers', the bullets', the things' and
+// the sparks', into one atlas.
+art_sprites_load :: proc(art: ^Art, mod: res.Mod) {
 	art.sprite_atlas = {side = ATLAS_SIDE}
 	source := Source{mod, &art.sprite_atlas, source_listings()}
 	gostek_load(&art.gostek, source)
 	art.bullets = bullets_load(source)
 	art.things = things_load(source)
 	art.sparks = sparks_load(source)
-
-	// Mipmapped as the original's: the map's texture, above, without a bias, as the
-	// original draws its polygons; the scenery and the sprites a touch sharp. The HUD's
-	// art, the original's interface, has none.
-	atlas_mipmap(&art.scenery_atlas)
 	atlas_mipmap(&art.sprite_atlas)
 }
 
 art_destroy :: proc(art: ^Art) {
+	art_map_destroy(art)
+	atlas_destroy(&art.sprite_atlas)
+	art^ = {}
+}
+
+// The map's own art let go, the sprites kept for the next map's.
+art_map_destroy :: proc(art: ^Art) {
 	rl.UnloadTexture(art.map_texture)
 	rl.UnloadTexture(art.edge_texture)
 	for edges in art.edges do delete(edges)
 	delete(art.scenery)
 	atlas_destroy(&art.scenery_atlas)
-	atlas_destroy(&art.sprite_atlas)
-	art^ = {}
+	art.map_texture, art.edge_texture, art.edges, art.scenery, art.scenery_atlas = {}, {}, {}, nil, {}
 }
 
 // The world as `camera` sees it in `frame`, into `area` of what is drawn into, in pixels,
