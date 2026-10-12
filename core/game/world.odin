@@ -69,6 +69,7 @@ Rules :: struct {
 	respawn_time:     i32,  // ticks
 	max_grenades:     i32,
 	medikit_cooldown: i32,  // ticks
+	guns_off:         res.Weapon_Set, // the guns no soldier is given
 }
 
 // An empty world on a map.

@@ -204,6 +204,7 @@ settings_from :: proc(config: ^res.Server_Config, weapons: res.Weapon_Table) -> 
 	if config.server.capture_limit > 0 do s.capture_limit = config.server.capture_limit
 	s.respawn_time = clamp(config.server.respawn_time, 0, 30) * game.TICK_RATE
 	s.max_grenades = clamp(config.server.max_grenades, 0, 5)
+	s.guns_off = res.guns_off(config.guns)
 	s.weapons = weapons
 	return s
 }

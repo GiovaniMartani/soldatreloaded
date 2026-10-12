@@ -197,6 +197,7 @@ menus_follow :: proc(match: ^Match) {
 	menus.width = match.camera.view.x
 	for &soldier, i in match.game.world.soldiers do menus.players[i] = soldier.active
 	menus.me = match.me
+	menus.guns_off = match.game.settings.guns_off
 	if match.mode == .Online {
 		menus.map_count = int(match.line.map_reply.count)
 		menus.map_index = clamp(menus.map_index, 0, max(menus.map_count - 1, 0))
@@ -279,7 +280,7 @@ weapons_menu_key :: proc(match: ^Match) {
 }
 
 // After each tick: the weapons menu up at my first life and a second after I die, while
-// the round is played. Online, a spectator just joined is shown the team menu, once.
+// the round is played, unless the server gives no primary to pick. Online, a spectator just joined is shown the team menu, once.
 limbo_tick :: proc(match: ^Match) {
 	limbo := &match.limbo
 	menus := &match.hud.menus
@@ -305,11 +306,19 @@ limbo_tick :: proc(match: ^Match) {
 	died_at, dying := limbo.died_at.?
 	_, playing := match.game.round.phase.(sim.Playing)
 	due := first_life || (dying && world.tick - died_at >= sim.TICK_RATE)
-	if due && playing && !limbo.locked && menus.open & {.Weapons, .Escape} == {} {
+	if due && playing && !limbo.locked && menus.open & {.Weapons, .Escape} == {} && any_primary(match) {
 		weapons_show(match)
 		limbo.died_at = nil
 	}
 	limbo.was_dead = dead
+}
+
+// Whether the server gives any primary: none, and the weapons menu has nothing to offer
+// as I spawn, and isn't put up.
+@(private = "file")
+any_primary :: proc(match: ^Match) -> bool {
+	for weapon in res.Weapon.Desert_Eagles ..= res.Weapon.Minigun do if weapon not_in match.game.settings.guns_off do return true
+	return false
 }
 
 // The weapons menu up; with `close_on_weapons`, the radio shut as it comes. The radio

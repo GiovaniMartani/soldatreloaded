@@ -119,6 +119,7 @@ tell_map :: proc(sv: ^Server, peer: net.Peer) {
 	m := net.Msg_Map{round = sv.round, map_name = sv.map_name, limit = u16(clamp(sv.game.settings.capture_limit, 0, i32(max(u16)))), hash = sv.map_hash, art = u8(len(sv.map_art))}
 	m.grenades = u8(clamp(sv.game.settings.max_grenades, 0, 255))
 	m.respawn = u16(clamp(sv.game.settings.respawn_time, 0, i32(max(u16))))
+	m.guns_off = sv.game.settings.guns_off
 	utils.short_string_set(&m.hostname, server_hostname(sv))
 	net.net_send_message(peer, .Map, net.msg_map, &m)
 	for &art, i in sv.map_art {

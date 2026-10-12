@@ -39,6 +39,9 @@ Weapon :: enum {
 	Thrown_Knife,
 }
 
+// Weapons, as a set: the guns a server turns off.
+Weapon_Set :: bit_set[Weapon; u32]
+
 // A weapon's numbers, in the units of Soldat's weapons.ini: times in ticks, sixty a second.
 Weapon_Stats :: struct {
 	damage:             f32, // the hit's strength: times the bullet's speed and the hitbox's modifier

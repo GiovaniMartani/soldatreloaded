@@ -798,3 +798,64 @@ respawn_at_once :: proc(t: ^testing.T) {
 	defaults := res.DEFAULT_SERVER_CONFIG
 	testing.expect_value(t, defaults.server.respawn_time, 3)
 }
+
+// A loadout as the guns on allow it: a gun that's off gives way to the first of its column
+// on, the knife first among the secondaries; with none on, the fists.
+@(test)
+loadouts_allowed :: proc(t: ^testing.T) {
+	testing.expect_value(t, game.loadout_allowed({.AK74, .LAW}), game.Loadout{.AK74, .LAW})
+	testing.expect_value(t, game.loadout_allowed({.AK74, .LAW}, {.AK74, .LAW}), game.Loadout{.Desert_Eagles, .Knife})
+	testing.expect_value(t, game.loadout_allowed({.Desert_Eagles, .Knife}, {.Desert_Eagles, .Knife}), game.Loadout{.MP5, .USSOCOM})
+	testing.expect_value(t, game.loadout_allowed({.Punch, .Chainsaw}, {.Chainsaw}), game.Loadout{.Punch, .Knife})
+	primaries := res.Weapon_Set{.Desert_Eagles, .MP5, .AK74, .Steyr_AUG, .Spas12, .Ruger77, .M79, .Barrett, .Minimi, .Minigun}
+	every := primaries + {.USSOCOM, .Knife, .Chainsaw, .LAW}
+	testing.expect_value(t, game.loadout_allowed({.Minigun, .Knife}, primaries), game.Loadout{.Punch, .Knife})
+	testing.expect_value(t, game.loadout_allowed({.Minigun, .Knife}, every), game.Loadout{.Punch, .Punch})
+	testing.expect_value(t, res.guns_off(res.ALL_GUNS), res.Weapon_Set{})
+	none: res.Gun_Settings
+	testing.expect_value(t, res.guns_off(none), every)
+}
+
+// A server of no guns: its Map says which are off, and a bot (whose profile has a
+// favourite gun) is placed with the fists in both hands.
+@(test)
+no_guns :: proc(t: ^testing.T) {
+	testing.expect(t, net.net_init())
+	defer net.net_shutdown()
+	sv := new(server.Server)
+	defer free(sv)
+	config := res.DEFAULT_SERVER_CONFIG
+	config.server.port = PORT
+	config.guns = {}
+	if !testing.expect(t, server.server_init(sv, {config = &config, data_dir = game.DATA_DIR, first_map = "ctf_Ash"})) do return
+	defer server.server_destroy(sv)
+
+	c := new(Test_Client)
+	defer free(c)
+	testing.expect(t, client_open(c, "Runner"))
+	defer client_close(c)
+	mapped := pump_until(sv, {c}, proc(cs: []^Test_Client) -> bool { return cs[0].mapped })
+	if !testing.expect(t, mapped, "the client is told the map") do return
+	testing.expect_value(t, c.map_msg.guns_off, res.guns_off({}))
+
+	slot, added := server.server_add_bot(sv, .Alpha)
+	if !testing.expect(t, added, "a bot") do return
+	soldier := &sv.game.world.soldiers[slot]
+	for _ in 0 ..< 10 * game.TICK_RATE {
+		server.server_pump(sv, server.TICK_SECONDS)
+		if !soldier.vitals.dead do break
+	}
+	if !testing.expect(t, !soldier.vitals.dead, "the bot is placed") do return
+	testing.expect_value(t, soldier.arsenal.primary.weapon, res.Weapon.Punch)
+	testing.expect_value(t, soldier.arsenal.secondary.weapon, res.Weapon.Punch)
+
+	// and placed again after a death, the same
+	sv.suicides[slot] = false
+	life := soldier.vitals.life
+	for _ in 0 ..< 10 * game.TICK_RATE {
+		server.server_pump(sv, server.TICK_SECONDS)
+		if soldier.vitals.life > life && !soldier.vitals.dead do break
+	}
+	testing.expect(t, soldier.vitals.life > life, "placed again")
+	testing.expect(t, soldier.arsenal.primary.weapon == .Punch && soldier.arsenal.secondary.weapon == .Punch, "with the fists again")
+}

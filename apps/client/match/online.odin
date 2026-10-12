@@ -40,13 +40,15 @@ Line_Seen :: struct {
 // The round on the server's map: the world and its picture made anew for it, nobody in
 // it until the snapshots say, and the round's limit and weapons the server's. False if
 // the map can't be loaded. The server's grenades before the round begins, which places
-// grenade kits only where there are grenades, and its respawn time, which the HUD counts.
+// grenade kits only where there are grenades, its respawn time, which the HUD counts, and
+// the guns it gives nobody, which the weapons menu greys out.
 world_make :: proc(match: ^Match) -> bool {
 	n := match.line
 	game := match.game
 	name := utils.short_string_text(&n.map_name)
 	game.settings.max_grenades = n.grenades
 	game.settings.respawn_time = n.respawn
+	game.settings.guns_off = n.guns_off
 	if !sim.game_start_round(game, name, seed = 1, data_dir = n.map_dir) {
 		log.errorf("could not load the server's map %s", name)
 		return false

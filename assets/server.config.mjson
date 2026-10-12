@@ -33,6 +33,24 @@ server: {
   scripts: "scripts"
 }
 
+// the guns a soldier may carry: one off is greyed out in the weapons menu and never given; with no primary on everyone has the fists, and with no secondary on the fists are the secondary
+guns: {
+  desert_eagles: true
+  mp5: true
+  ak74: true
+  steyr_aug: true
+  spas12: true
+  ruger77: true
+  m79: true
+  barrett: true
+  minimi: true
+  minigun: true
+  ussocom: true
+  knife: true
+  chainsaw: true
+  law: true
+}
+
 // the rotation, played in turn; none plays every map under data/maps, the map again each round
 maps: []
 

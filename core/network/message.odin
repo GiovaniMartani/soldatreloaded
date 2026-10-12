@@ -147,6 +147,7 @@ Msg_Map :: struct {
 	limit:    u16,               // the captures that win the round, for the HUD
 	grenades: u8,                // the grenades a soldier carries at most: none, and no grenade kits, for 0
 	respawn:  u16,               // the ticks a soldier waits to be placed again, for the HUD's count
+	guns_off: res.Weapon_Set,    // the guns the server gives nobody, for the weapons menu
 	hash:     [MAP_HASH_SIZE]u8, // the map's .pms, SHA-256: a copy with another isn't this map; zeros for any
 	art:      u8,                // its own art files, a Map_Art each to follow
 }
@@ -158,6 +159,9 @@ msg_map :: proc(b: ^Buffer, m: ^Msg_Map) {
 	net_u16(b, &m.limit)
 	net_u8(b, &m.grenades)
 	net_u16(b, &m.respawn)
+	off := transmute(u32)m.guns_off
+	net_u32(b, &off)
+	m.guns_off = transmute(res.Weapon_Set)off
 	for &byte in m.hash do net_u8(b, &byte)
 	net_u8(b, &m.art)
 }

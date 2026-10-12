@@ -39,7 +39,7 @@ soldier_spawn_point :: proc(world: ^World, id: Soldier_Id, team: res.Team) -> ut
 // one is played elsewhere: its keys move it here, but fire nothing.
 soldier_place :: proc(g: ^Game, slot: Soldier_Id, team: res.Team, remote: bool) {
 	soldier := &g.world.soldiers[slot]
-	loadout := loadout_allowed(soldier.loadout)
+	loadout := loadout_allowed(soldier.loadout, g.settings.guns_off)
 	respawn := Respawn {
 		target    = slot,
 		life      = soldier.vitals.life + 1,

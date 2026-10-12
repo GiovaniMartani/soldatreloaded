@@ -11,6 +11,7 @@ Game_Settings :: struct {
 	capture_limit:    i32,  // captures that win a round
 	respawn_time:     i32,  // ticks
 	max_grenades:     i32,
+	guns_off:         res.Weapon_Set, // the guns no soldier is given: none, every one on
 	medikit_cooldown: i32,  // seconds before a second medikit
 	kits_collide:     bool, // bullets and blasts knock kits about
 	guns_collide:     bool, // and dropped guns
