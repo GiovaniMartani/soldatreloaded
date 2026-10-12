@@ -115,11 +115,12 @@ input_poll :: proc(input: ^Input, config: ^res.Client_Config, view: [2]f32, menu
 	if input.clicked && !rl.IsMouseButtonDown(.LEFT) do input.clicked = false
 	if spent, ok := input.spent.?; ok && !rl.IsKeyDown(digit_key(spent)) do input.spent = nil // let go of: any menu's again
 	was_held := input.held
+	radio_mods := radio_modifiers(config) if radio > 0 else {}
 	input.held = {}
 	for name, command in config.binds {
 		modifier, key, is_key := key_parse(name)
 		if !is_key || command == "" || !modifier_down(modifier) || overridden(config, modifier, name) do continue
-		if menu_owns(input, modifier, key, menu, radio) do continue
+		if menu_owns(input, modifier, key, menu, radio, radio_mods) do continue
 
 		if button, is_button := button_of(command); is_button {
 			if !controls do continue
@@ -200,10 +201,13 @@ one_at_a_time :: proc(input: ^Input, buttons: sim.Buttons) -> sim.Buttons {
 }
 
 // With the radio menu open, after input_poll: the call chosen this frame, a digit from
-// 1 to `calls` with no modifier held (ControlGame.pas).
-input_radio_digit :: proc(calls: int) -> (digit: int, chosen: bool) {
+// 1 to `calls` with no modifier held (ControlGame.pas), but one that is itself the radio's
+// key (radio_modifiers): Shift bound to the radio, held as the call is picked, is no
+// taunt's Shift then.
+input_radio_digit :: proc(config: ^res.Client_Config, calls: int) -> (digit: int, chosen: bool) {
+	own := radio_modifiers(config)
 	for m in Modifier {
-		if m != .None && modifier_down(m) do return
+		if m != .None && m not_in own && modifier_down(m) do return
 	}
 	for d in 1 ..= calls {
 		if rl.IsKeyPressed(digit_key(d)) do return d, true
@@ -211,17 +215,33 @@ input_radio_digit :: proc(calls: int) -> (digit: int, chosen: bool) {
 	return
 }
 
+// The modifiers bound to open the radio themselves (`shift` or `rshift` to +radio, and
+// so on): held, they are the radio's, and its digits still its own.
+@(private = "file")
+radio_modifiers :: proc(config: ^res.Client_Config) -> (own: bit_set[Modifier]) {
+	for name, command in config.binds {
+		if !strings.equal_fold(strings.trim_space(command), "+radio") do continue
+		switch name {
+		case "shift", "rshift": own += {.Shift}
+		case "ctrl", "rctrl":   own += {.Ctrl}
+		case "alt", "ralt":     own += {.Alt}
+		}
+	}
+	return
+}
+
 // The keys a menu has for its own: the left button, while open or while its click is
 // held; the number keys, plain or with Ctrl (the weapons menu's secondaries), while
-// open: with Alt or Shift they are the taunts'. The radio menu's: its calls' plain digits.
+// open: with Alt or Shift they are the taunts'. The radio menu's: its calls' plain digits,
+// and those with a modifier that is the radio's own key (radio_modifiers).
 @(private = "file")
-menu_owns :: proc(input: ^Input, modifier: Modifier, key: Key, menu: bool, radio: int) -> bool {
+menu_owns :: proc(input: ^Input, modifier: Modifier, key: Key, menu: bool, radio: int, radio_mods: bit_set[Modifier]) -> bool {
 	#partial switch k in key {
 	case rl.MouseButton:  return k == .LEFT && (menu || input.clicked)
 	case rl.KeyboardKey:
 		if menu do return k >= .ZERO && k <= .NINE && (modifier == .None || modifier == .Ctrl)
 		digit := int(k) - int(rl.KeyboardKey.ZERO)
-		return modifier == .None && digit >= 1 && digit <= radio
+		return (modifier == .None || modifier in radio_mods) && digit >= 1 && digit <= radio
 	}
 	return false
 }

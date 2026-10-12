@@ -335,7 +335,7 @@ keys :: proc(match: ^Match, config: ^res.Client_Config, sounds: ^sound.Sound) {
 	menus_follow(match)
 	radio_took := false
 	if radio {
-		if digit, chosen := input.input_radio_digit(RADIO_CALLS); chosen {
+		if digit, chosen := input.input_radio_digit(config, RADIO_CALLS); chosen {
 			radio_choose(match, digit)
 			radio_took = true
 		}
