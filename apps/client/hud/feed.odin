@@ -210,6 +210,13 @@ console_scroll_max :: proc(feed: ^Feed) -> int {
 	return max(sa.len(feed.scrollback) - BIG_CONSOLE_SHOWN, 0)
 }
 
+// The kill feed emptied: a new round's begun, a new map or the same one restarted, and
+// the last one's kills are no news of this one's.
+feed_kills_clear :: proc(feed: ^Feed) {
+	sa.clear(&feed.kills)
+	feed.kill_scroll = 0
+}
+
 // The clocks: the big message runs down, the feeds scroll when it is time, my readouts
 // fade.
 @(private = "file")
