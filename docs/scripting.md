@@ -46,9 +46,9 @@ one script, hand handlers in with `server.on`, and keep a script's own names `lo
 
 | event | the handler's arguments | when | return |
 |---|---|---|---|
-| `chat` | `slot, text, team` | a player said `text` (`team`: to its team alone), before anyone else hears it | `true` keeps the line from everyone else |
+| `chat` | `slot, text, team` | a player said `text` (`team`: to its team alone), before anyone else hears it; what the server says meanwhile (`server.say`, `say_to`, a `command`'s answer) goes out after the line, so an answer to `!restart` reads under it | `true` keeps the line from everyone else |
 | `command` | `slot, text` | a player said `/text` and the server has no such command (`team`, `votemap`, `votekick`, `yes` and `no` are its own) | `true` answers it; else "Unknown command" |
-| `join` | `slot, name` | a player (or a bot) has joined | |
+| `join` | `slot, name, player` | a player (or a bot) has joined, before it picks a team: `player` is its table, its `ip` and `hwid` among it | |
 | `leave` | `slot, name` | one has left; its slot is already empty | |
 | `kill` | `killer, victim, weapon` | a kill, with the weapon's name; `killer == victim` for a suicide | |
 | `capture` | `slot, team` | the flag scored by `slot`, for `team` | |
@@ -91,6 +91,9 @@ what the players are known by on the wire; a slot is reused once its player has 
 | `server.player(slot)` | one player's, or `nil` |
 | `server.kick(slot [, reason])` | the player put off, told `reason`; a bot is simply removed |
 | `server.add_bot([team [, name]])` | a bot, on `"alpha"` or `"bravo"` (else the emptier side), from `data/bots` by `name` or at random: its slot, or `nil` |
+| `server.set_team(slot, team)` | the player put on `"alpha"`, `"bravo"` or `"spectator"`, placed anew there and announced, as an admin's `setteam`: `true`, or `false` for nobody in `slot`, another team, or the team it is on |
+| `server.unban(who)` | the ban lifted on an address (`"1.2.3.4"`), a hardware ID, or the name the ban was given, as an admin's `unban`: `true`, or `false` if there was none |
+| `server.unban_last()` | the last ban made since the server started lifted, as `unbanlast`: whom it was on, `{ip = "1.2.3.4", hwid = "..."}` (what the ban named of the two), or `nil` if none is on |
 
 ## The web
 
@@ -115,8 +118,9 @@ held in a table), and `json.array(t)` marks an empty table as an array.
 
 ## An example
 
-Two scripts side by side: `stats.lua` answers /stats, and `rounds.lua` counts the joins and
-reports each round to a webhook. Each is a file of `scripts/`, and runs as it is.
+Three scripts side by side: `stats.lua` answers /stats, `rounds.lua` counts the joins and
+reports each round to a webhook, and `gather.lua` takes `!` commands in the chat. Each is a
+file of `scripts/`, and runs as it is.
 
 ```lua
 -- scripts/stats.lua
@@ -141,5 +145,38 @@ server.on("round_end", function(stats)
     end
     http.post(url, {content = ("Round over on %s, %d joined: %s"):format(
         stats.map, joined, table.concat(lines, ", "))})
+end)
+```
+
+```lua
+-- scripts/gather.lua
+-- !alpha, !bravo and !spec for everyone; !unban <ip> and !unbanlast for the addresses
+-- below. The line is let through (nothing is returned), so everyone reads the command,
+-- and the answer comes after it.
+local admins = {["203.0.113.7"] = true}
+local teams = {alpha = "alpha", bravo = "bravo", spec = "spectator"}
+
+server.on("join", function(slot, name, player)
+    if player.bot then return end
+    server.say_to(slot, ("Welcome, %s. Say !alpha, !bravo or !spec."):format(name))
+    if admins[player.ip] then
+        server.say_to(slot, "You may !unban <ip> and !unbanlast here.")
+    end
+end)
+
+server.on("chat", function(slot, text)
+    local word, rest = text:match("^!(%S+)%s*(.-)%s*$")
+    if not word then return end
+    local admin = admins[server.player(slot).ip]
+    if teams[word] then
+        if not server.set_team(slot, teams[word]) then
+            server.say_to(slot, "You're on that team already.")
+        end
+    elseif word == "unban" and admin then
+        server.say(server.unban(rest) and rest .. " unbanned." or rest .. " isn't banned.")
+    elseif word == "unbanlast" and admin then
+        local lifted = server.unban_last()
+        server.say(lifted and "Unbanned " .. (lifted.ip or lifted.hwid) .. "." or "No ban to lift.")
+    end
 end)
 ```

@@ -189,7 +189,7 @@ failing :: proc(t: ^testing.T) {
 @(private = "file")
 HOSTED :: `
 kills = 0; joins = {}; left = nil; ticks = 0; seconds = 0; ended = nil; started = nil; answered = nil; match = nil
-function on_join(slot, name) joins[#joins + 1] = name end
+function on_join(slot, name, player) joins[#joins + 1] = name; joined = player end
 function on_leave(slot, name) left = name end
 function on_kill(killer, victim, weapon) kills = kills + 1; last_weapon = weapon end
 function on_capture(slot, team) captured = {slot = slot, team = team} end
@@ -250,6 +250,20 @@ hosted :: proc(t: ^testing.T) {
 	bot, added := server.server_add_bot(sv, .Alpha)
 	testing.expectf(t, added, "a bot joins (%d)", bot)
 	testing.expect(t, holds(s, "assert(#joins == 1 and joins[1] == server.player(0).name)"), "on_join heard it, by name")
+	testing.expect(t, holds(s, "assert(joined and joined.slot == 0 and joined.name == joins[1] and joined.bot and joined.team == 'alpha')"),
+		"and had the player's table with it")
+
+	// a team set: the bot moved, and not where it is already, nor to a team there isn't
+	testing.expect(t, holds(s, "assert(server.set_team(0, 'bravo') and server.player(0).team == 'bravo')"), "the script moves a player to bravo")
+	testing.expect(t, holds(s, "assert(not server.set_team(0, 'bravo') and not server.set_team(0, 'purple') and not server.set_team(9, 'alpha'))"),
+		"but not to the team it is on, nor to one there isn't, nor anyone not there")
+	testing.expect(t, holds(s, "assert(server.set_team(0, 'alpha'))"), "and back")
+
+	// bans lifted: by address, and the last made
+	testing.expect(t, holds(s, "server.command('banip 10.1.2.3 60'); assert(server.unban('10.1.2.3') and not server.unban('10.1.2.3'))"),
+		"the script lifts a ban by its address, once")
+	testing.expect(t, holds(s, "server.command('banip 10.4.5.6 60'); local u = server.unban_last(); assert(u and u.ip == '10.4.5.6' and u.hwid == nil and server.unban_last() == nil)"),
+		"and the last ban made, once")
 	testing.expect(t, holds(s, "local p = server.players()[1]; assert(p.slot == 0 and p.team == 'alpha' and p.bot and p.kills == 0 and not p.spectator)"),
 		"the player's table says its slot, its team, that it is a bot, with no kills")
 	testing.expect(t, holds(s, "local b = server.add_bot('bravo'); assert(b == 1 and server.player(1).team == 'bravo')"), "the script adds a bot of its own")

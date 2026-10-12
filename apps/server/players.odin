@@ -107,12 +107,41 @@ broadcast :: proc(sv: ^Server, kind: net.Msg_Kind, routine: proc(b: ^net.Buffer,
 	}
 }
 
+// A line of the server's chat held: to everyone, or to `to` alone.
+Held_Chat :: struct {
+	to: Maybe(Slot),
+	m:  net.Msg_Chat,
+}
+
+// The server's line `m`, to everyone or to `to`, held instead if a script is hearing a
+// player's line (chat_hold): what the script says back to it comes after it. True if
+// held.
+@(private = "file")
+chat_held :: proc(sv: ^Server, m: ^net.Msg_Chat, to: Maybe(Slot) = nil) -> bool {
+	if !sv.chat_hold do return false
+	append(&sv.chat_held, Held_Chat{to, m^})
+	return true
+}
+
+// What the server held while a script heard a player's line, sent now, in order.
+chat_release :: proc(sv: ^Server) {
+	sv.chat_hold = false
+	for &held in sv.chat_held {
+		if slot, one := held.to.?; one {
+			if sv.players[slot].joined do net.net_send_message(sv.players[slot].peer, .Chat, net.msg_chat, &held.m)
+		} else {
+			broadcast(sv, .Chat, net.msg_chat, &held.m)
+		}
+	}
+	clear(&sv.chat_held)
+}
+
 // A line from the server itself to everyone, of a kind the client colours: who came,
 // who went, a vote, the game's word.
 announce :: proc(sv: ^Server, kind: net.Chat_Kind, text: string) {
 	m := net.Msg_Chat{kind = kind}
 	utils.short_string_set(&m.text, text)
-	broadcast(sv, .Chat, net.msg_chat, &m)
+	if !chat_held(sv, &m) do broadcast(sv, .Chat, net.msg_chat, &m)
 }
 
 // A line from the server to one player: an answer to its command. Nothing to a bot.
@@ -121,7 +150,7 @@ tell :: proc(sv: ^Server, slot: game.Soldier_Id, text: string) {
 	if !player.joined do return
 	m := net.Msg_Chat{kind = .Server} // "*SERVER*: ", as ServerSendStringMessage from 255
 	utils.short_string_set(&m.text, text)
-	net.net_send_message(player.peer, .Chat, net.msg_chat, &m)
+	if !chat_held(sv, &m, slot) do net.net_send_message(player.peer, .Chat, net.msg_chat, &m)
 }
 
 // The server's own chat to everyone, shown as "*SERVER*: text".
@@ -136,7 +165,7 @@ server_say_kind :: proc(sv: ^Server, kind: net.Chat_Kind, color: utils.Rgba, tex
 	log.info(text)
 	m := net.Msg_Chat{kind = kind, color = color}
 	utils.short_string_set(&m.text, text)
-	broadcast(sv, .Chat, net.msg_chat, &m)
+	if !chat_held(sv, &m) do broadcast(sv, .Chat, net.msg_chat, &m)
 }
 
 server_say_to :: proc(sv: ^Server, slot: game.Soldier_Id, kind: net.Chat_Kind, color: utils.Rgba, text: string) {
@@ -144,7 +173,7 @@ server_say_to :: proc(sv: ^Server, slot: game.Soldier_Id, kind: net.Chat_Kind, c
 	if !player.joined do return
 	m := net.Msg_Chat{kind = kind, color = color}
 	utils.short_string_set(&m.text, text)
-	net.net_send_message(player.peer, .Chat, net.msg_chat, &m)
+	if !chat_held(sv, &m, slot) do net.net_send_message(player.peer, .Chat, net.msg_chat, &m)
 }
 
 // A line of chat from the player in `slot` (a bot's), to everyone.

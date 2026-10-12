@@ -200,7 +200,10 @@ hook_joined :: proc(user: rawptr, slot: game.Soldier_Id) {
 	if !listened(s, .Join) do return
 	lua.pushinteger(s.L, lua.Integer(slot))
 	push_name(s.L, s.server, slot)
-	dispatch(s, .Join, 2, false)
+	// the player's table, its address and hardware ID among it; nil for a slot nobody has
+	if player_present(&s.server.players[slot]) do push_player(s.L, s.server, slot)
+	else do lua.pushnil(s.L)
+	dispatch(s, .Join, 3, false)
 }
 
 hook_left :: proc(user: rawptr, slot: game.Soldier_Id, name: string) {

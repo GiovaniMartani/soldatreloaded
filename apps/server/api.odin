@@ -1,5 +1,6 @@
 package server
 
+import sa "core:container/small_array"
 import "core:c"
 import "core:log"
 import "core:path/filepath"
@@ -37,6 +38,9 @@ server_api := [?]lua.L_Reg {
 	{"player", l_player},
 	{"kick", l_kick},
 	{"add_bot", l_add_bot},
+	{"set_team", l_set_team},
+	{"unban", l_unban},
+	{"unban_last", l_unban_last},
 	{"on", l_on},
 	{"off", l_off},
 	{nil, nil},
@@ -64,7 +68,7 @@ push_name :: proc(L: ^lua.State, sv: ^Server, slot: game.Soldier_Id) {
 
 // A player's table pushed: its slot, name, team, tally, ping, health, and whether it is
 // a bot, alive and watching; and a person's address and hardware ID, which a bot hasn't.
-@(private = "file")
+@(private)
 push_player :: proc(L: ^lua.State, sv: ^Server, slot: game.Soldier_Id) {
 	soldier := &sv.game.world.soldiers[slot]
 	player := &sv.players[slot]
@@ -352,5 +356,63 @@ l_add_bot :: proc "c" (L: ^lua.State) -> c.int {
 	slot, ok := server_add_bot(s.server, team, name)
 	if !ok do return 0
 	lua.pushinteger(L, lua.Integer(slot))
+	return 1
+}
+
+// server.set_team(slot, team): the player put on "alpha", "bravo" or "spectator", placed
+// anew on it and announced, as an admin's setteam does: true, or false for a slot nobody
+// has, another team, or the team it is on already.
+@(private = "file")
+l_set_team :: proc "c" (L: ^lua.State) -> c.int {
+	s := script_of(L)
+	context = s.ctx
+	slot := lua.L_checkinteger(L, 1)
+	team := team_of(check_string(L, 2))
+	moved := false
+	if slot_present(s.server, slot) && (team == .Alpha || team == .Bravo || team == .Spectator) {
+		moved = player_set_team(s.server, game.Soldier_Id(slot), team)
+		if moved do log.infof("a script moved %s to %v", utils.short_string_text(&s.server.players[slot].name), team)
+	}
+	lua.pushboolean(L, b32(moved))
+	return 1
+}
+
+// server.unban(who): the ban lifted on an address ("1.2.3.4"), a hardware ID, or the
+// name the ban was given, as an admin's unban: true, or false if there is none.
+@(private = "file")
+l_unban :: proc "c" (L: ^lua.State) -> c.int {
+	s := script_of(L)
+	context = s.ctx
+	who := check_string(L, 1)
+	sv := s.server
+	host, hwid, named := whom_named(who, sa.slice(&sv.lists.bans))
+	lifted := named && lists.lists_unban(&sv.lists, host, utils.short_string_text(&hwid))
+	if lifted do log.infof("a script unbanned %s", who)
+	lua.pushboolean(L, b32(lifted))
+	return 1
+}
+
+// server.unban_last(): the last ban made since the server started lifted, as an admin's
+// unbanlast: whom it was on, {ip = "1.2.3.4", hwid = "..."} (what it named of the two),
+// or nil if none is on.
+@(private = "file")
+l_unban_last :: proc "c" (L: ^lua.State) -> c.int {
+	s := script_of(L)
+	context = s.ctx
+	sv := s.server
+	last, banned := sv.last_ban.?
+	sv.last_ban = nil
+	hwid := utils.short_string_text(&last.hwid)
+	if !banned || !lists.lists_unban(&sv.lists, last.host, hwid) do return 0
+	log.infof("a script lifted the last ban, %s", lists.whom_text(last.host, hwid))
+	lua.createtable(L, 0, 2)
+	if last.host != 0 {
+		push_string(L, lists.address_text(last.host))
+		lua.setfield(L, -2, "ip")
+	}
+	if hwid != "" {
+		push_string(L, hwid)
+		lua.setfield(L, -2, "hwid")
+	}
 	return 1
 }

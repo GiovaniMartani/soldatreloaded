@@ -117,6 +117,8 @@ Server :: struct {
 	suicides:    [MAX_PLAYERS]Maybe(bool), // a death asked for in the chat (/kill, /brutalkill: brutal) or by an admin (pkill), for the next tick
 	last_joined: Maybe(Slot),             // the person who joined last, for kicklast
 	last_ban:    Maybe(Last_Ban),          // the ban made last, for unbanlast
+	chat_hold:   bool,                     // a script hears a player's line: the server's chat held until the line has gone (chat_release)
+	chat_held:   [dynamic]Held_Chat,       // and what it held, in order
 }
 
 // Whom the last ban named: an address, a machine, or both.
@@ -183,6 +185,7 @@ server_destroy :: proc(sv: ^Server) {
 	}
 	free(sv.streams)
 	delete(sv.map_file)
+	delete(sv.chat_held)
 	map_art_clear(sv)
 	delete(sv.map_art)
 	for name in sv.maps do delete(name)

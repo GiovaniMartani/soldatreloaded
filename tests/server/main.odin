@@ -43,6 +43,7 @@ Test_Client :: struct {
 	chat:          net.Msg_Chat,
 	chats:         int, // lines from players
 	announcements: int, // and from the server itself
+	heard:         sa.Small_Array(16, utils.Short_String(128)), // every line's text, in the order it came
 	snapshots:     int,
 	stream:        net.Client_Stream,
 	game:          ^game.Game, // the client's world, made on the Map
@@ -91,6 +92,7 @@ client_pump :: proc(c: ^Test_Client) {
 				client_map(c)
 			case .Chat:
 				net.msg_chat(&b, &c.chat)
+				sa.append(&c.heard, c.chat.text)
 				if c.chat.slot == nil {
 					c.announcements += 1
 				} else {
@@ -535,4 +537,41 @@ script_sees_address :: proc(t: ^testing.T) {
 	alice := fmt.tprintf("local p = server.player(%d); assert(p.ip == '127.0.0.1' and p.hwid == '0123456789A')", c.welcome.slot)
 	testing.expect(t, server.script_run(s, alice, "check"), "Alice's address and hardware ID")
 	testing.expect(t, server.script_run(s, "for _, p in ipairs(server.players()) do if p.bot then assert(p.ip == nil and p.hwid == nil) end end", "check"), "the bot has neither")
+}
+
+// A script that answers a player's line and lets it through: the line is heard first,
+// then the answer, as a player would read the two.
+@(test)
+script_answers_after_line :: proc(t: ^testing.T) {
+	testing.expect(t, net.net_init())
+	defer net.net_shutdown()
+	sv := new(server.Server)
+	defer free(sv)
+	config: res.Server_Config
+	testing.expect(t, open_server(sv, &config))
+	defer server.server_destroy(sv)
+
+	c := new(Test_Client)
+	defer free(c)
+	testing.expect(t, client_open(c, "Alice"))
+	defer client_close(c)
+	welcomed := pump_until(sv, {c}, proc(cs: []^Test_Client) -> bool { return cs[0].welcomed })
+	if !testing.expect(t, welcomed, "Alice joins") do return
+
+	s := new(server.Script)
+	defer free(s)
+	s.quiet = true
+	path := fmt.tprintf("%s/soldatreloaded_server_test_answer.lua", os.get_env("TEMP", context.temp_allocator) if ODIN_OS == .Windows else "/tmp")
+	utils.write_file(path, transmute([]byte)string("server.on('chat', function(slot, text) if text == '!hi' then server.say('hello back') end return false end)\n"))
+	defer os.remove(path)
+	if !testing.expect(t, server.script_open(s, sv, path), "the script is read") do return
+	defer server.script_close(s)
+
+	sa.clear(&c.heard)
+	say(c, "!hi")
+	both := pump_until(sv, {c}, proc(cs: []^Test_Client) -> bool { return sa.len(cs[0].heard) >= 2 })
+	if !testing.expect(t, both, "Alice hears her line and the answer") do return
+	first, second := sa.get(c.heard, 0), sa.get(c.heard, 1)
+	testing.expect_value(t, utils.short_string_text(&first), "!hi")
+	testing.expect_value(t, utils.short_string_text(&second), "hello back")
 }

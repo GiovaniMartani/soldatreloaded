@@ -31,8 +31,14 @@ chat :: proc(sv: ^Server, slot: game.Soldier_Id, e: ^net.Event) {
 	// an emote is no chat: a key does it as often as the player likes (the client keeps it
 	// to one in EMOTE_COOLDOWN), and only the line's own flood check counts it
 	if !is_emote(text) do player.chat_warnings += 1
-	// a script hears it first, and may keep it
-	if sv.hooks.chat != nil && sv.hooks.chat(sv.hooks.user, slot, text, m.team) do return
+	// a script hears it first, and may keep it; what the server says while it hears it
+	// (the script's answer, its commands') is held, and goes after the line (chat_release)
+	heard := sv.hooks.chat != nil
+	sv.chat_hold = heard
+	kept := heard && sv.hooks.chat(sv.hooks.user, slot, text, m.team)
+	sv.chat_hold = false
+	defer if heard do chat_release(sv)
+	if kept do return
 	if strings.has_prefix(text, "/") {
 		if !admin_command(sv, slot, text[1:]) do player_command(sv, slot, text[1:])
 		return

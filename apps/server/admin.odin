@@ -394,7 +394,7 @@ set_muted :: proc(sv: ^Server, host: u32, hwid: string, muted: bool) {
 // name an entry of `entries` was given. The hardware ID comes back whole, for the caller
 // to keep while it uses its text: text of a local here would outlive this procedure's
 // frame, and text of an entry would shift under the unban that takes the entry out.
-@(private = "file")
+@(private)
 whom_named :: proc(word: string, entries: []$E) -> (host: u32, hwid: lists.Hwid, ok: bool) {
 	if host, ok = lists.address_parse(word); ok do return
 	if hwid, ok = lists.hwid_parse(word); ok do return
