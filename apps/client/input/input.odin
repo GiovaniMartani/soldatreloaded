@@ -37,6 +37,7 @@ Input :: struct {
 	view:   [2]f32,      // the view's size it was last kept in, so a resized window keeps its place
 	clicked: bool,        // a menu took the left button's press: it is no bind's until let go
 	alone:   sim.Buttons, // of the CONFLICTING buttons, the one a tick last had alone
+	spent:   Maybe(int),  // the number key a menu took: no menu's again until it is let go (input_held_digit)
 }
 
 // The buttons of which a tick takes one at a time (AreConflictingKeysPressed): the
@@ -112,6 +113,7 @@ input_poll :: proc(input: ^Input, config: ^res.Client_Config, view: [2]f32, menu
 	}
 
 	if input.clicked && !rl.IsMouseButtonDown(.LEFT) do input.clicked = false
+	if spent, ok := input.spent.?; ok && !rl.IsKeyDown(digit_key(spent)) do input.spent = nil // let go of: any menu's again
 	was_held := input.held
 	input.held = {}
 	for name, command in config.binds {
@@ -142,7 +144,7 @@ input_menu_keys :: proc(input: ^Input) -> (keys: Menu_Keys) {
 	}
 	if !modifier_down(.Alt) && !modifier_down(.Shift) {
 		for digit in 0 ..= 9 {
-			if rl.IsKeyPressed(digit_key(digit)) do keys.digit = digit
+			if rl.IsKeyPressed(digit_key(digit)) do keys.digit, input.spent = digit, digit
 		}
 	}
 	keys.ctrl = modifier_down(.Ctrl)
@@ -151,9 +153,12 @@ input_menu_keys :: proc(input: ^Input) -> (keys: Menu_Keys) {
 
 // A number key held down, plain or with Ctrl, and which: the weapons menu, come up while
 // it is held (a round begun, a first spawn, a key held through it), takes it as pressed.
-input_held_digit :: proc() -> (digit: int, held: bool) {
+// Not one a menu took already, still held: the team picked with it, the weapons menu come
+// up after, takes no weapon of it.
+input_held_digit :: proc(input: ^Input) -> (digit: int, held: bool) {
 	if modifier_down(.Alt) || modifier_down(.Shift) do return
 	for d in 0 ..= 9 {
+		if spent, ok := input.spent.?; ok && spent == d do continue
 		if rl.IsKeyDown(digit_key(d)) do return d, true
 	}
 	return

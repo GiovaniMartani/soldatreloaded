@@ -350,7 +350,7 @@ keys :: proc(match: ^Match, config: ^res.Client_Config, sounds: ^sound.Sound) {
 		taken := input.input_menu_keys(&match.input)
 		if radio_took do taken.digit = nil // the press was the radio's, not a weapon too
 		if just_up && taken.digit == nil && !radio_took {
-			if digit, held := input.input_held_digit(); held do taken.digit = digit
+			if digit, held := input.input_held_digit(&match.input); held do taken.digit = digit
 		}
 		if menu_keys(match, config, sounds, taken) {
 			match.request = Leave{}
