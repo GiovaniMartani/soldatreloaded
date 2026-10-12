@@ -8,15 +8,17 @@ description: >
 # everything the game and the launcher link (raylib, curl), on Linux raylib and Lua. What
 # Linux lacks is built here from pinned sources, checked against their published hashes,
 # and cached: ENet for the server, and curl on mbedTLS for the server and the launcher.
+# SQLite, the scripts' databases (apps/server/db.odin), is built on both, from its
+# amalgamation: on Linux with the rest, on Windows as sqlite3.lib on the linker's path.
 #
 # Windows' raylib is built here too, over Odin's: the one Odin ships is raylib's own
 # release, whose Visual Studio project asks for AVX2, and a game built on it dies at its
 # first frame on a CPU before 2013 (Ivy Bridge and older), an illegal instruction.
 # raylib's CMake asks for nothing beyond what every x64 CPU has.
 #
-# The step exports ODIN_FLAGS, which every build and test passes to Odin: on Linux the
-# directory the static libraries are in, searched before the system's. What stays the
-# system's is what every machine has: the C library, and on Linux X11 and OpenGL.
+# The step exports ODIN_FLAGS, which every build and test passes to Odin: the directory
+# the static libraries are in, searched before the system's. What stays the system's is
+# what every machine has: the C library, and on Linux X11 and OpenGL.
 
 runs:
   using: composite
@@ -71,6 +73,47 @@ runs:
       shell: bash
       run: cp "$RAYLIB_LIB/raylib.lib" "$(odin root)/vendor/raylib/windows/raylib.lib"
 
+    # SQLite's amalgamation, one C file, at a pinned version checked against its hash.
+    - name: sqlite version
+      shell: bash
+      run: |
+        {
+          echo "SQLITE_VERSION=3530400"
+          echo "SQLITE_YEAR=2026"
+          echo "SQLITE_SHA256=1e71ddf93849c6a6ecf58b827c0692073d2dd7ee40196158068f7b29f422e87d"
+        } >> "$GITHUB_ENV"
+
+    - name: sqlite cache
+      id: sqlite-cache
+      if: runner.os == 'Windows'
+      uses: actions/cache@v5
+      with:
+        path: ~/sqlite-lib
+        key: sqlite-${{ runner.os }}-${{ env.SQLITE_VERSION }}
+
+    # Against the same C runtime as raylib's (/MD), as the programs are.
+    - name: build sqlite
+      if: runner.os == 'Windows' && steps.sqlite-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p "$HOME/sqlite-lib" && cd "$RUNNER_TEMP"
+        curl -fsSL "https://www.sqlite.org/$SQLITE_YEAR/sqlite-amalgamation-$SQLITE_VERSION.zip" -o sqlite.zip
+        echo "$SQLITE_SHA256  sqlite.zip" | sha256sum -c -
+        unzip -q sqlite.zip
+        cd "sqlite-amalgamation-$SQLITE_VERSION"
+        printf '%s\n' 'cmake_minimum_required(VERSION 3.16)' 'project(sqlite3 C)' \
+          'add_library(sqlite3 STATIC sqlite3.c)' \
+          'target_compile_definitions(sqlite3 PRIVATE SQLITE_THREADSAFE=1 SQLITE_OMIT_LOAD_EXTENSION)' > CMakeLists.txt
+        cmake -S . -B build -A x64 -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL
+        cmake --build build --config Release -j
+        cp build/Release/sqlite3.lib "$HOME/sqlite-lib/"
+
+    - name: link sqlite
+      if: runner.os == 'Windows'
+      shell: bash
+      run: echo "ODIN_FLAGS=-extra-linker-flags:/LIBPATH:$(cygpath -w "$HOME/sqlite-lib")" >> "$GITHUB_ENV"
+
     - name: versions
       if: runner.os == 'Linux'
       shell: bash
@@ -91,7 +134,7 @@ runs:
       uses: actions/cache@v5
       with:
         path: ~/static-libs
-        key: static-libs-${{ runner.os }}-enet${{ env.ENET_TAG }}-mbedtls${{ env.MBEDTLS_VERSION }}-curl${{ env.CURL_VERSION }}
+        key: static-libs-${{ runner.os }}-enet${{ env.ENET_TAG }}-mbedtls${{ env.MBEDTLS_VERSION }}-curl${{ env.CURL_VERSION }}-sqlite${{ env.SQLITE_VERSION }}
 
     - name: packages
       if: runner.os == 'Linux'
@@ -100,7 +143,7 @@ runs:
         sudo apt-get update -q
         sudo apt-get install -yq libx11-dev libgl-dev zlib1g-dev
 
-    - name: build enet, mbedtls and curl
+    - name: build enet, mbedtls, curl and sqlite
       if: runner.os == 'Linux' && steps.cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
@@ -136,6 +179,13 @@ runs:
         cmake --install curl-build
 
         cp "$(gcc -print-file-name=libz.a)" "$STATIC_LIBS/lib/" # zlib, which curl uses
+
+        curl -fsSL "https://www.sqlite.org/$SQLITE_YEAR/sqlite-amalgamation-$SQLITE_VERSION.zip" -o sqlite.zip
+        echo "$SQLITE_SHA256  sqlite.zip" | sha256sum -c -
+        unzip -q sqlite.zip
+        gcc -c -O2 -fPIC -DSQLITE_THREADSAFE=1 -DSQLITE_OMIT_LOAD_EXTENSION \
+          "sqlite-amalgamation-$SQLITE_VERSION/sqlite3.c" -o sqlite3.o
+        ar rcs "$STATIC_LIBS/lib/libsqlite3.a" sqlite3.o
 
     - name: link the static libraries
       if: runner.os == 'Linux'

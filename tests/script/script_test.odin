@@ -396,12 +396,15 @@ match_controls :: proc(t: ^testing.T, sv: ^server.Server, s: ^server.Script) {
 API :: `
 for _, name in ipairs({'say', 'say_to', 'print', 'command', 'pause', 'unpause', 'paused', 'next_map', 'maps',
                        'map', 'round', 'tick', 'time_left', 'scores', 'players', 'player', 'kick', 'add_bot',
+                       'set_password', 'spawns', 'kill', 'set_spawn', 'set_team', 'ban', 'ban_ip', 'ban_hwid',
+                       'unban', 'unban_last', 'world_text', 'world_text_to', 'screen_text', 'screen_text_to',
                        'on', 'off'}) do
   assert(type(server[name]) == 'function', 'server.' .. name)
 end
 for _, name in ipairs({'request', 'get', 'post'}) do assert(type(http[name]) == 'function', 'http.' .. name) end
 for _, name in ipairs({'encode', 'decode', 'array'}) do assert(type(json[name]) == 'function', 'json.' .. name) end
 assert(json.null ~= nil, 'json.null')
+assert(type(db.open) == 'function', 'db.open')
 for _, event in ipairs({'chat', 'command', 'join', 'leave', 'kill', 'capture', 'spawn', 'match_end', 'round_end',
                         'round_start', 'tick', 'second'}) do
   local fn = function() end
@@ -418,6 +421,70 @@ api :: proc(t: ^testing.T) {
 	defer free(s)
 	testing.expect(t, server.script_open(s, sv, path), "every call and event docs/scripting.md has is there")
 	server.script_close(s)
+}
+
+// A database: made where it wasn't, the values as ?s and back with their types, a name
+// that looks like SQL only a name, every statement of an exec, a transaction kept whole
+// or not at all, the ?s and the values counted, and a handle closed.
+@(private = "file")
+DATABASE :: `
+local path = ...
+local d = assert(db.open(path))
+assert(d:first('PRAGMA journal_mode').journal_mode == 'wal', 'in WAL mode')
+d:exec([[CREATE TABLE times (map TEXT NOT NULL, name TEXT NOT NULL, ticks INTEGER, best REAL, kept INTEGER);
+         CREATE INDEX times_map ON times (map, ticks)]])
+local changed, id = d:exec('INSERT INTO times VALUES (?, ?, ?, ?, ?)', 'ctf_Ash', "Bob'); DROP TABLE times;--", 120, 2.5, true)
+assert(changed == 1 and id == 1, 'one row, the first')
+d:exec('INSERT INTO times VALUES (?, ?, ?, ?, ?)', 'ctf_Ash', 'Alice', 90, nil, false)
+local rows = d:query('SELECT name, ticks, best, kept FROM times WHERE map = ? ORDER BY ticks', 'ctf_Ash')
+assert(#rows == 2 and rows[1].name == 'Alice' and rows[2].name == "Bob'); DROP TABLE times;--", 'both, in order, the name only a name')
+assert(math.type(rows[1].ticks) == 'integer' and rows[1].best == nil and rows[1].kept == 0, 'an integer, a NULL as no key, false as 0')
+assert(rows[2].best == 2.5 and rows[2].kept == 1, 'a real, true as 1')
+assert(d:first('SELECT COUNT(*) AS n FROM times').n == 2 and d:first('SELECT * FROM times WHERE ticks > 1000') == nil, 'first, or nil')
+assert(#d:query('SELECT * FROM times WHERE map = ?', 'nowhere') == 0, 'no rows, an empty list')
+
+-- a transaction: all of it, or with an error none of it
+assert(d:transaction(function(t) t:exec('UPDATE times SET ticks = ticks + 1'); return 'kept' end) == 'kept')
+assert(d:first('SELECT ticks FROM times WHERE name = ?', 'Alice').ticks == 91, 'committed')
+local ok = pcall(d.transaction, d, function(t) t:exec('DELETE FROM times'); error('changed my mind') end)
+assert(not ok and d:first('SELECT COUNT(*) AS n FROM times').n == 2, 'rolled back')
+
+-- what isn't so is an error
+assert(not pcall(d.exec, d, 'INSERT INTO times VALUES (?, ?, ?, ?, ?)', 'too', 'few'), 'too few values')
+assert(not pcall(d.exec, d, 'SELECT 1', 'one too many'), 'too many')
+assert(not pcall(d.query, d, 'SELECT 1; SELECT 2'), 'a query is one statement')
+assert(not pcall(d.exec, d, 'SELEKT nothing'), 'SQL that is not')
+assert(not pcall(d.exec, d, 'SELECT ?', {}), 'a table is no value')
+d:close()
+d:close()
+assert(not pcall(d.query, d, 'SELECT 1'), 'closed')
+
+-- it was kept: opened again, it is all there
+do
+  local again <close> = assert(db.open(path))
+  assert(again:first('SELECT COUNT(*) AS n FROM times').n == 2, 'kept in the file')
+end
+local none, why = db.open('/no/such/folder/x.db')
+assert(none == nil and type(why) == 'string', 'a file that cannot be made: nil and why')
+databased = true
+`
+
+@(test)
+database :: proc(t: ^testing.T) {
+	temp, _ := os.temp_directory(context.temp_allocator)
+	file := strings.concatenate({temp, "/soldatreloaded_script_test.db"}, context.temp_allocator)
+	for suffix in ([3]string{"", "-wal", "-shm"}) do os.remove(strings.concatenate({file, suffix}, context.temp_allocator))
+	defer for suffix in ([3]string{"", "-wal", "-shm"}) do os.remove(strings.concatenate({file, suffix}, context.temp_allocator))
+	path := write_scripts(t, "soldatreloaded_script_database", {{"db.lua", "databased = false"}})
+	sv := new(server.Server)
+	defer free(sv)
+	s := new(server.Script)
+	defer free(s)
+	if !testing.expect(t, server.script_open(s, sv, path), "a script") do return
+	defer server.script_close(s)
+	code := fmt.tprintf("local f = load(%q); f(%q)", DATABASE, file)
+	testing.expect(t, server.script_run(s, code, "database"), "the database does all it says")
+	testing.expect(t, holds(s, "assert(databased)"), "to the end")
 }
 
 // No scripts ship with the server: with its scripts folder not there, it runs with no

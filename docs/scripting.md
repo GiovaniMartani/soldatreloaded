@@ -5,7 +5,8 @@ names in server.config.mjson (`scripts/` by default), read once as the server st
 order of their names, into one state. Each hands the server functions to call when
 things happen (`server.on`), and calls the server back through the `server` table, so
 the scripts run side by side, each with its own handlers. Requests to the web go through
-`http`, with `json` for their bodies.
+`http`, with `json` for their bodies, and what a script keeps from one start to the next
+goes in a database, `db`.
 
 The server ships no scripts, and runs without any, its `scripts/` empty or not there at
 all. The examples, and the community's scripts, are at
@@ -125,6 +126,40 @@ platform's TLS (Windows and macOS) or mbedTLS, so `https` works.
 `json.encode(value)` and `json.decode(text)` go between Lua and JSON: a table with keys
 1..n is an array, any other an object, `json.null` stands for null (as `nil` cannot be
 held in a table), and `json.array(t)` marks an empty table as an array.
+
+## Databases
+
+```lua
+local d = assert(db.open("stats.db"))   -- in the server's folder; made if it isn't there
+d:exec([[CREATE TABLE IF NOT EXISTS kills (name TEXT NOT NULL, weapon TEXT, at INTEGER);
+         CREATE INDEX IF NOT EXISTS kills_name ON kills (name)]])
+d:exec("INSERT INTO kills VALUES (?, ?, ?)", name, weapon, os.time())
+for _, row in ipairs(d:query("SELECT name, COUNT(*) AS n FROM kills GROUP BY name ORDER BY n DESC LIMIT ?", 5)) do
+    server.say(("%s: %d"):format(row.name, row.n))
+end
+local mine = d:first("SELECT COUNT(*) AS n FROM kills WHERE name = ?", name)   -- a row, or nil
+d:transaction(function(t) t:exec(...); t:exec(...) end)   -- all of it, or (an error) none
+d:close()                                                 -- or let the script's end close it
+```
+
+`db.open(path)` opens an [SQLite](https://www.sqlite.org/lang.html) database, a file
+any script may keep for itself (or share with another), and gives a handle, or `nil` and
+why. `d:exec(sql, ...)` runs every statement in `sql` and gives the rows the last
+changed and the last row inserted's id; `d:query(sql, ...)` runs one statement and gives
+its rows, a list of tables by column name; `d:first(sql, ...)` the first of them, or
+`nil`. `d:transaction(fn)` runs `fn(d)` between `BEGIN` and `COMMIT`, giving back what it
+returns; an error in it rolls everything back and is raised again.
+
+The values go in as `?`s, in order, never into the SQL's text: a player's name is only
+ever a name, whatever it holds. A number goes in as an integer or a real, as Lua has it,
+a boolean as 1 or 0, and `nil` as NULL; a column comes back as an integer, a number or a
+string, and NULL as no key in the row. An SQL error, or a count of values that isn't the
+`?`s', is the script's error.
+
+The calls run on the server's thread, as everything the script does: keep them to quick
+ones, by an index, and a write to when something happened, not every tick. A database is
+opened in WAL mode, so one killed mid-write keeps what it had, and another program (the
+`sqlite3` tool, a web page) may read it while the server runs.
 
 ## An example
 
