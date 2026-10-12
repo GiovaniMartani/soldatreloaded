@@ -92,6 +92,7 @@ hud_data :: proc(match: ^Match, config: ^res.Client_Config) -> (data: hud.Hud_Da
 
 	data.camera = match.seen.pos
 	data.view = match.seen.view
+	data.zoom = draw.camera_zoom(match.seen)
 	data.cursor = cursor_shown(match)
 	data.under_cursor, data.friend = under_cursor(match, &names)
 	data.follow = match.watch.follow

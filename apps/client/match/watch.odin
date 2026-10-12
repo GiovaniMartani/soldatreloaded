@@ -141,7 +141,7 @@ camera_tick :: proc(match: ^Match) {
 		// still with the cursor in the middle: 10 either way, wider with a wider view
 		ratio := camera.view.x / 640
 		middle := cursor.x > 310 * ratio && cursor.x < 330 * ratio && cursor.y > 230 && cursor.y < 250
-		if !middle do camera.pos += (cursor - camera.view / 2) / SPECTATOR_AIM_DIST
+		if !middle do camera.pos += (cursor - camera.view / 2) / SPECTATOR_AIM_DIST / draw.camera_zoom(camera^)
 		return
 	}
 	soldier := &match.game.world.soldiers[followed]
@@ -196,7 +196,7 @@ camera_wobble :: proc(match: ^Match, followed: sim.Soldier_Id) {
 point_visible :: proc(match: ^Match, point: [2]f32, id: sim.Soldier_Id) -> bool {
 	s := &match.game.world.soldiers[id]
 	middle := s.body.pos - (s.body.pos - s.controls.aim) / 2
-	view := match.camera.view
+	view := draw.camera_world(match.camera) // in the world's units
 	return abs(point.x - middle.x) < view.x && abs(point.y - middle.y) < view.y
 }
 

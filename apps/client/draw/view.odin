@@ -12,7 +12,8 @@ import res "../../../core/resources"
 // are shown. Windowed, they are the window's own. Fullscreen, they are the resolution's,
 // in a picture of their own (Canvas) scaled up or down to the screen. Either way a shape
 // past the original's limits shows no more of the world, but bars (Client.pas,
-// GameRendering.pas).
+// GameRendering.pas); or, zoomed (Screen_Fit), fills the window, no more of the world
+// across.
 
 // The original's limits on the view's shape (MIN_FOV, MAX_FOV).
 MIN_ASPECT :: 1.25
@@ -23,24 +24,39 @@ CANVAS_SAMPLES :: 4 // the window's own multisampling (MSAA_4X_HINT)
 View :: struct {
 	size: [2]i32,       // the pixels the world is drawn in
 	area: rl.Rectangle, // where they are shown in the window, between bars
+	zoom: f32,          // the view's units to a world unit: 1, but more where a wide screen is filled (Screen_Fit's zoom)
 }
 
-// The view as the graphics settings have it, for the window as it is now.
+// The view as the graphics settings have it, for the window as it is now. Past the
+// original's shapes: letterboxed, its shape held to them between bars; or zoomed, the
+// letterboxed picture made bigger to cover the whole window, whatever the resolution's
+// shape: the world bigger, as much of it across, less above and below.
 view_of :: proc(graphics: ^res.Graphics_Settings) -> View {
 	window := [2]f32{max(f32(rl.GetScreenWidth()), 1), max(f32(rl.GetScreenHeight()), 1)} // never none, minimized
 	drawn := window
 	if graphics.window_mode == .Fullscreen && graphics.screen_width > 0 && graphics.screen_height > 0 {
 		drawn = {f32(graphics.screen_width), f32(graphics.screen_height)}
 	}
-	if drawn.x > drawn.y * MAX_ASPECT {
+	zoom: f32 = 1
+	if graphics.screen_fit == .Zoom {
+		// the letterboxed picture made bigger until it covers the window, what is past its
+		// edges cut off: as much of the world across as letterboxed (no more), less above
+		// and below; or, a window narrower than it, as much above and below, less across
+		boxed := clamp(drawn.x / drawn.y, MIN_ASPECT, MAX_ASPECT)
+		shape := window.x / window.y
+		drawn.x = math.round(drawn.y * shape) // the window's shape, the resolution's height kept, as sharp
+		zoom = max(shape / boxed, 1)
+	} else if drawn.x > drawn.y * MAX_ASPECT {
 		drawn.x = math.ceil(drawn.y * MAX_ASPECT)
 	} else if drawn.x < drawn.y * MIN_ASPECT {
 		drawn.y = math.ceil(drawn.x / MIN_ASPECT)
 	}
 	shown := drawn * min(window.x / drawn.x, window.y / drawn.y)
+	if graphics.screen_fit == .Zoom do shown = window // to the pixel, though its width was rounded
 	return {
 		size = {i32(drawn.x), i32(drawn.y)},
 		area = {math.floor((window.x - shown.x) / 2), math.floor((window.y - shown.y) / 2), shown.x, shown.y},
+		zoom = zoom,
 	}
 }
 

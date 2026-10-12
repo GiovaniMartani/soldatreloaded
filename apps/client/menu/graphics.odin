@@ -15,6 +15,10 @@ import "../ui"
 @(private = "file", rodata)
 WINDOW_NAMES := [?]string{"Windowed", "Fullscreen"}
 
+// How the world fits a screen of another shape than the view's (res.Screen_Fit).
+@(private = "file", rodata)
+FIT_NAMES := [?]string{"Letterbox", "Zoom to fill"}
+
 // The resolutions offered, those the mode allows on the screen (resolutions), and the
 // screen's own besides.
 @(private = "file", rodata)
@@ -47,6 +51,7 @@ page_graphics :: proc(menu: ^Menu) {
 	graphics := &menu.config.graphics
 	ui.section(k, "DISPLAY")
 	ui.enum_select(k, "Window", &graphics.window_mode, WINDOW_NAMES[:])
+	ui.enum_select(k, "Screen fit", &graphics.screen_fit, FIT_NAMES[:])
 	{
 		current := [2]i32{graphics.screen_width, graphics.screen_height}
 		sizes := resolutions(current, graphics.window_mode)

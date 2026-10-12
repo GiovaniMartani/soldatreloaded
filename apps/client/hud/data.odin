@@ -30,7 +30,8 @@ Hud_Data :: struct {
 
 	// the view
 	camera:       [2]f32, // the view's middle, in the world
-	view:         [2]f32, // its size: world units, which are the HUD's units
+	view:         [2]f32, // its size, in the HUD's units
+	zoom:         f32,    // the HUD's units to a world unit: 1, but more where a wide screen is filled; 0 as 1
 	cursor:       [2]f32, // the game's cursor, in units from the view's top-left
 	under_cursor: string, // the player the cursor is on, a teammate with its health
 	friend:       bool,   // and on my side

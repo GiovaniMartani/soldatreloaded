@@ -40,8 +40,8 @@ draw_sky_behind :: proc(sky: Sky, camera: Camera) {
 @(private = "package")
 draw_sky :: proc(sky: Sky, polymap: ^res.Poly_Map, camera: Camera) {
 	d := f32(res.MAX_SECTORS) * max(f32(polymap.sector_size), math.ceil(0.5 * VIEW_HEIGHT / f32(res.MAX_SECTORS)))
-	x0 := camera.pos.x - camera.view.x / 2
-	x1 := camera.pos.x + camera.view.x / 2
+	x0 := camera.pos.x - camera_world(camera).x / 2
+	x1 := camera.pos.x + camera_world(camera).x / 2
 	top, bottom := sky.top, sky.bottom
 
 	rlgl.SetTexture(rlgl.GetTextureIdDefault())

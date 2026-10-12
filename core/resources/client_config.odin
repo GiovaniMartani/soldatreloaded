@@ -109,6 +109,7 @@ Graphics_Settings :: struct {
 	screen_width:      i32 `jsoncomment:"the resolution's width: windowed, the window's; fullscreen, the world is drawn at it and scaled to the screen"`,
 	screen_height:     i32 `jsoncomment:"the resolution's height"`,
 	window_mode:       Window_Mode `jsoncomment:"windowed, or fullscreen: a window without borders over the whole screen"`,
+	screen_fit:        Screen_Fit `jsoncomment:"how the world fits the screen where their shapes differ (a screen wider than 16:9 or narrower than 5:4, or a fullscreen resolution of another shape than the screen): letterbox, between black bars, as Soldat 1 shows it; or zoom, filling the screen, zoomed in on a wide one to show no more across than 16:9 does, a little less above and below"`,
 	vsync:             bool `jsoncomment:"wait for the display's refresh"`,
 	fps_limit:         bool `jsoncomment:"draw at most max_fps frames a second; false draws them as fast as they come"`,
 	max_fps:           i32 `jsoncomment:"the frames drawn a second at most, while fps_limit is on"`,
@@ -128,6 +129,12 @@ Graphics_Settings :: struct {
 	cursor_size:       i32 `jsoncomment:"the menu cursor's size, percent"`,
 	track_shot:        bool `jsoncomment:"the camera follows a Barrett shot fired scoped, until you stand up"`,
 	screen_shake:      bool `jsoncomment:"others' shots in view shake the camera too, not only yours (cl_screenshake)"`,
+}
+
+// How the world fits a screen past the original's shapes (draw.view_of).
+Screen_Fit :: enum {
+	Letterbox,
+	Zoom,
 }
 
 Window_Mode :: enum {
@@ -250,6 +257,7 @@ DEFAULT_CLIENT_CONFIG := Client_Config {
 		screen_width      = 1600,
 		screen_height     = 900,
 		window_mode       = .Windowed,
+		screen_fit        = .Letterbox,
 		fps_limit         = true,
 		max_fps           = 500,
 		scenery           = true,

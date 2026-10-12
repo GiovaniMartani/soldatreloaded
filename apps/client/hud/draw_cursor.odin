@@ -56,5 +56,6 @@ draw_my_arrow :: proc(u: ^ui.Ui, art: ^Art, data: ^Hud_Data) {
 
 // A point in the world, in the view.
 in_view :: proc(data: ^Hud_Data, world: [2]f32) -> [2]f32 {
-	return world - data.camera + data.view / 2
+	zoom := data.zoom if data.zoom > 0 else 1
+	return (world - data.camera) * zoom + data.view / 2
 }

@@ -50,7 +50,8 @@ sparks_burst :: proc(sparks: ^Sparks, game: ^sim.Game) {
 // follows.
 sparks_weather :: proc(sparks: ^Sparks, polymap: ^res.Poly_Map, camera: Camera, tick: u32) {
 	if polymap.weather < 1 || polymap.weather > 3 || tick % WEATHER_EVERY != 0 do return
-	half := camera.view / 2
+	seen_size := camera_world(camera) // in the world's units
+	half := seen_size / 2
 	kind: Spark_Kind
 	vel: utils.Vec2
 	x, top, life: f32
@@ -68,7 +69,7 @@ sparks_weather :: proc(sparks: ^Sparks, polymap: ^res.Poly_Map, camera: Camera, 
 	for _ in 0 ..< WEATHER_DROPS {
 		x += 128 - 50 + f32(below(sparks, 90))
 		y := top + f32(below(sparks, 150))
-		seen := abs(x - camera.pos.x) < camera.view.x && abs(y - camera.pos.y) < camera.view.y
+		seen := abs(x - camera.pos.x) < seen_size.x && abs(y - camera.pos.y) < seen_size.y
 		if kind == .Rain || seen do spark_add(sparks, kind, {x, y}, vel, life)
 	}
 }
