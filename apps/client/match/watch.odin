@@ -208,9 +208,13 @@ cursor_aimed :: proc(match: ^Match) -> [2]f32 {
 }
 
 // The cursor as drawn: as cursor_aimed, but mine between the last tick's start and now,
-// gliding on while the round stands.
+// gliding on while the round stands. Where it is, with a menu open, which clicks where it
+// is; and with no ticks going (a demo paused, seeking, or under the escape menu), when the
+// last tick's start is no longer moving on: drawn between it and now, the cursor was
+// shown short of where a click took it.
 cursor_shown :: proc(match: ^Match) -> [2]f32 {
 	if recorders_cursor(match) do return match.playback.tick.cursor
+	if hud.menus_any_open(&match.hud.menus) || match_pace(match) == 0 do return match.input.cursor
 	return input.input_cursor_between(&match.input, match.frame.tick_alpha)
 }
 
