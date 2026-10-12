@@ -22,9 +22,9 @@ import "../input"
 // it, five ticks ahead, until it is gone or I stand up (graphics.track_shot).
 //
 // And the original's screen shake, while the camera follows someone: a shot in their
-// view jolts it (mine always, others' with graphics.screen_shake; Sprites.pas Fire), my
-// chainsaw's bite does (Bullets.pas), and a blast in their view wobbles it as it flares
-// (Sparks.pas), less as it dies down.
+// view jolts it (mine always, others' with graphics.screen_shake, or their minigun's with
+// graphics.minigun_shake; Sprites.pas Fire), my chainsaw's bite does (Bullets.pas), and a
+// blast in their view wobbles it as it flares (Sparks.pas), less as it dies down.
 
 SPECTATOR_AIM_DIST :: 30 // the free camera's speed, by the cursor's offset from the middle
 TRACK_LEAD :: 5 // ticks of its flight the camera keeps ahead of a tracked shot
@@ -158,7 +158,8 @@ camera_jolt :: proc(match: ^Match, followed: sim.Soldier_Id) {
 		#partial switch e in event {
 		case sim.Fired:
 			if e.weapon == .Chainsaw || e.weapon == .Frag_Grenade do continue // a grenade is thrown, not fired
-			if e.soldier != match.me && !match.config.graphics.screen_shake do continue
+			shakes := match.config.graphics.screen_shake || (e.weapon == .Minigun && match.config.graphics.minigun_shake)
+			if e.soldier != match.me && !shakes do continue
 			if !point_visible(match, world.soldiers[e.soldier].body.pos, followed) do continue
 			#partial switch e.weapon {
 			case .Minimi, .Spas12, .Barrett, .Minigun: camera_shake(match, 3)

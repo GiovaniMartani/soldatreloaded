@@ -44,6 +44,7 @@ page_options :: proc(menu: ^Menu) {
 	ui.color_row(k, "Stats colour", &config.interface.stats_color)
 	ui.toggle(k, "Follow scoped shot", &config.graphics.track_shot)
 	ui.toggle(k, "Others' fire shakes the screen", &config.graphics.screen_shake)
+	if !config.graphics.screen_shake do ui.toggle(k, "Others' minigun fire shakes the screen", &config.graphics.minigun_shake) // with all of it on, the minigun's is in it
 	ui.toggle(k, "Show on Discord", &config.interface.discord)
 	ui.section(k, "NETWORK")
 	ui.slider(k, "Smoothing", &config.network.smooth, 0, 500, 25, "%d ms")

@@ -129,6 +129,7 @@ Graphics_Settings :: struct {
 	cursor_size:       i32 `jsoncomment:"the menu cursor's size, percent"`,
 	track_shot:        bool `jsoncomment:"the camera follows a Barrett shot fired scoped, until you stand up"`,
 	screen_shake:      bool `jsoncomment:"others' shots in view shake the camera too, not only yours (cl_screenshake)"`,
+	minigun_shake:     bool `jsoncomment:"others' minigun shots in view shake the camera, though screen_shake is off: the hail of one coming is felt"`,
 }
 
 // How the world fits a screen past the original's shapes (draw.view_of).
