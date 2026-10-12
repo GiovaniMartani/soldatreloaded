@@ -447,6 +447,7 @@ window_open :: proc(window: ^Window, graphics: ^res.Graphics_Settings) {
 	// config has it below: one made at a resolution chosen for fullscreen, larger than the
 	// screen, would sit off it, its title bar above the top
 	rl.InitWindow(min(graphics.screen_width, 800), min(graphics.screen_height, 600), "Soldat Reloaded")
+	lock_keys_plain() // Caps Lock down while held, not while its lock is on
 	when ODIN_OS != .Windows { // the badge as the window's icon; on Windows it is the executable's own
 		icon := rl.LoadImage("data/icon.png")
 		if icon.data != nil {
