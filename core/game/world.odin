@@ -3,6 +3,7 @@ package game
 import sa "core:container/small_array"
 
 import res "../resources"
+import "../utils"
 
 // The game in four ideas:
 //
@@ -49,6 +50,7 @@ World :: struct {
 	heard:        sa.Small_Array(MAX_HEARD, Hearing), // word from another machine, for the next step (word.odin)
 	kills_asked:  sa.Small_Array(MAX_PLAYERS, Kill_Asked), // deaths asked of the referee from outside the step (referee.odin)
 	placed:       sa.Small_Array(MAX_PLAYERS, Respawn), // placings made outside the step, told with the next step's rulings (spawn.odin)
+	spawns_set:   [MAX_PLAYERS]Maybe(utils.Vec2), // where a soldier is placed, over its team's spawn points: a host's say (a server script's), for the round
 }
 
 // What the game plays by on every map, loaded once and never changed: the animations,

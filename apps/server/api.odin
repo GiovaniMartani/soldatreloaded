@@ -42,6 +42,7 @@ server_api := [?]lua.L_Reg {
 	{"player", l_player},
 	{"kick", l_kick},
 	{"kill", l_kill},
+	{"set_spawn", l_set_spawn},
 	{"add_bot", l_add_bot},
 	{"set_team", l_set_team},
 	{"ban", l_ban},
@@ -75,13 +76,13 @@ push_name :: proc(L: ^lua.State, sv: ^Server, slot: game.Soldier_Id) {
 }
 
 // A player's table pushed: its slot, name, team, tally, ping, health, where it is, and
-// whether it is a bot, alive and watching; and a person's address and hardware ID, which
-// a bot hasn't.
+// whether it is a bot, alive, watching and an admin; and a person's address and hardware
+// ID, which a bot hasn't.
 @(private)
 push_player :: proc(L: ^lua.State, sv: ^Server, slot: game.Soldier_Id) {
 	soldier := &sv.game.world.soldiers[slot]
 	player := &sv.players[slot]
-	lua.createtable(L, 0, 15)
+	lua.createtable(L, 0, 16)
 	if player.peer != nil {
 		push_string(L, lists.address_text(net.peer_address(player.peer)))
 		lua.setfield(L, -2, "ip")
@@ -110,6 +111,8 @@ push_player :: proc(L: ^lua.State, sv: ^Server, slot: game.Soldier_Id) {
 	lua.setfield(L, -2, "alive")
 	lua.pushboolean(L, b32(soldier.team == .Spectator))
 	lua.setfield(L, -2, "spectator")
+	lua.pushboolean(L, b32(player.admin))
+	lua.setfield(L, -2, "admin")
 	lua.pushnumber(L, lua.Number(soldier.vitals.health))
 	lua.setfield(L, -2, "health")
 	lua.pushnumber(L, lua.Number(soldier.body.pos.x))
@@ -469,6 +472,27 @@ l_kill :: proc "c" (L: ^lua.State) -> c.int {
 	}
 	if alive do sv.suicides[slot] = false // a kill, not a brutal one
 	lua.pushboolean(L, b32(alive))
+	return 1
+}
+
+// server.set_spawn(slot [, x, y]): where the soldier is placed from now on, each time,
+// over its team's spawn points, until the round ends or it leaves; with no place, its
+// team's spawn points again. True, or false for nobody in `slot`.
+@(private = "file")
+l_set_spawn :: proc "c" (L: ^lua.State) -> c.int {
+	s := script_of(L)
+	context = s.ctx
+	sv := s.server
+	slot := lua.L_checkinteger(L, 1)
+	present := slot_present(sv, slot)
+	if present {
+		if lua.isnoneornil(L, 2) {
+			sv.game.world.spawns_set[slot] = nil
+		} else {
+			sv.game.world.spawns_set[slot] = utils.Vec2{f32(lua.L_checknumber(L, 2)), f32(lua.L_checknumber(L, 3))}
+		}
+	}
+	lua.pushboolean(L, b32(present))
 	return 1
 }
 

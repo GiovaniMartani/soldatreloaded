@@ -26,6 +26,13 @@ spawn_point :: proc(polymap: ^res.Poly_Map, team: res.Team, rng: ^Rng) -> utils.
 	return {}
 }
 
+// Where the soldier `id` of `team` is placed: where the host has set it (spawns_set), else
+// one of its team's spawn points.
+soldier_spawn_point :: proc(world: ^World, id: Soldier_Id, team: res.Team) -> utils.Vec2 {
+	if pos, set := world.spawns_set[id].?; set do return pos
+	return spawn_point(world.polymap, team, &world.rng)
+}
+
 // A soldier as a host places it: dressed as its player said, on `team`, with its loadout
 // as allowed; or a spectator, present and dead, never respawned, which the simulation
 // passes by. Its life counts up, so word from before isn't taken for after. A `remote`
@@ -40,7 +47,7 @@ soldier_place :: proc(g: ^Game, slot: Soldier_Id, team: res.Team, remote: bool) 
 		primary   = loadout.primary,
 		secondary = loadout.secondary,
 	}
-	if team != .Spectator do respawn.pos = spawn_point(g.world.polymap, team, &g.world.rng)
+	if team != .Spectator do respawn.pos = soldier_spawn_point(&g.world, slot, team)
 	soldier.remote = remote
 	apply_ruling(&g.world, &g.resources, respawn)
 	if team == .Spectator {

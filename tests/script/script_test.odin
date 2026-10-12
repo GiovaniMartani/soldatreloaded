@@ -291,6 +291,17 @@ hosted :: proc(t: ^testing.T) {
 	}
 	testing.expect(t, holds(s, "kills = 0"), "the kills counted afresh")
 
+	// a place set for the bot: it is placed there, until the place is taken away
+	at: [2]f32 // the bravo flag's, where an alpha soldier is never placed
+	for sp in sv.game.world.polymap.spawnpoints do if sp.active && sp.kind == .Bravo_Flag do at = sp.pos
+	testing.expect(t, holds(s, fmt.tprintf("assert(server.set_spawn(0, %v, %v) and not server.set_spawn(9, 0, 0))", at.x, at.y)), "the script sets where the bot is placed")
+	testing.expect(t, holds(s, "assert(server.player(0).admin == false)"), "a bot isn't an admin")
+	if testing.expect(t, pump_until(sv, s, "(server.player(0).alive or nil)", 10 * game.TICK_RATE), "the bot is placed again") {
+		pos := sv.game.world.soldiers[0].body.pos
+		testing.expectf(t, abs(pos.x - at.x) < 5 && abs(pos.y - at.y) < 5, "where it was set, %v, not %v", at, pos)
+	}
+	testing.expect(t, holds(s, "assert(server.set_spawn(0))") && sv.game.world.spawns_set[0] == nil, "and the place taken away")
+
 	// the ticks, every second, and a kill heard among the tick's rulings
 	pump(sv, s, 5)
 	testing.expect(t, holds(s, "assert(ticks >= 5, ticks)"), "on_tick runs with every tick")

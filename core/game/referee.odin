@@ -73,7 +73,7 @@ judge_lives :: proc(world: ^World, resources: ^Resources, out: ^Tick_Output) {
 @(private = "file")
 judge_respawn :: proc(world: ^World, resources: ^Resources, id: Soldier_Id, out: ^Tick_Output) {
 	soldier := &world.soldiers[id]
-	pos := spawn_point(world.polymap, soldier.team, &world.rng)
+	pos := soldier_spawn_point(world, id, soldier.team)
 	respawn := Respawn {
 		target    = id,
 		life      = soldier.vitals.life + 1,
