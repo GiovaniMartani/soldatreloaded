@@ -22,7 +22,7 @@ package menu
 // is handed over by the next update.
 //
 //   menu.odin      the menu, the rail, the header and footer, the background, the pages
-//   servers.odin   the server browser                 join.odin      join by address
+//   servers.odin   Online play: the server browser    join.odin      its address row
 //   offline.odin   Offline Play: the match, the bots, the rotation
 //   demos.odin     the demos recorded here            player.odin    name, look, loadout
 //   controls.odin  the keys                           taunts.odin    the taunt editor
@@ -55,7 +55,6 @@ VERSION_LABEL :: "dev build" when VERSION == "dev" else "v" + VERSION // as the 
 
 Page :: enum {
 	Servers,
-	Join,
 	Offline,
 	Demos,
 	Player,
@@ -227,7 +226,6 @@ menu_draw :: proc(menu: ^Menu, u: ^ui.Ui) {
 	menu.bar_x = nil
 	switch menu.page {
 	case .Servers:  page_servers(menu)
-	case .Join:     page_join(menu)
 	case .Offline:  page_offline(menu)
 	case .Demos:    page_demos(menu)
 	case .Player:   page_player(menu)
@@ -275,8 +273,7 @@ RAIL_PAD :: 10
 
 @(rodata)
 PAGE_NAMES := [Page]string {
-	.Servers  = "Servers",
-	.Join     = "Join by address",
+	.Servers  = "Online play",
 	.Offline  = "Offline play",
 	.Demos    = "Demos",
 	.Player   = "Player",
@@ -289,8 +286,7 @@ PAGE_NAMES := [Page]string {
 
 @(rodata)
 PAGE_LINES := [Page]string {
-	.Servers  = "The games being played now, from the lobby.",
-	.Join     = "Connect to a server you know the address of.",
+	.Servers  = "The games being played now, from the lobby; or a server by its address.",
 	.Offline  = "Capture the flag against bots, on this machine alone.",
 	.Demos    = "Games recorded here, to watch again.",
 	.Player   = "Your name, and how your soldier looks and what it carries.",

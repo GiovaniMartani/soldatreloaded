@@ -11,12 +11,13 @@ import "../../../core/utils"
 import "../online"
 import "../ui"
 
-// The server browser: the lobby's servers that answered, a row each (name, map, players,
-// ping), under a search and the filters, sorted by the column picked: those this game
-// can join first. A click picks one, a second joins it, as Join does; the wheel scrolls,
-// and with the focus on the list the arrows pick and Enter joins. Below, what the one
-// picked is, and Join. A server that asks a password sends me to Join by address, its
-// address filled in and the password's field waiting.
+// Online play: over everything the address row (join.odin), a server by its address;
+// then the server browser, the lobby's servers that answered, a row each (name, map,
+// players, ping), under a search and the filters, sorted by the column picked: those
+// this game can join first. A click picks one, a second joins it, as Join does; the
+// wheel scrolls, and with the focus on the list the arrows pick and Enter joins. Below,
+// what the one picked is, and Join. A server that asks a password puts its address in
+// the address row, the password to be typed after it.
 
 Servers :: struct {
 	search:          string, // by name or map
@@ -49,6 +50,10 @@ page_servers :: proc(menu: ^Menu) {
 	u := k.ui
 	x, w, y := k.x, k.w, f32(BODY_TOP)
 	k.scrolling = false // the list scrolls itself
+
+	// a server by its address, over the list of them
+	address_row(menu, x, y, w)
+	y += ui.CTRL_H + 10
 
 	// the search and the filters
 	sw := clamp(w * 0.34, 120, 220)
@@ -179,6 +184,8 @@ page_servers :: proc(menu: ^Menu) {
 	if pressed && selected != nil do join_server(menu, selected)
 	tw := jx - x - 16
 	switch {
+	case menu.join.password_asked && k.edit.key == &menu.join:
+		footer_text(menu, x, tw, "This server asks a password: type it after the slash, then Enter.", ui.TEXT)
 	case menu.join.connect_asked && menu.line.state != .Off:
 		footer_text(menu, x, tw, line_status(menu), ui.MUTED)
 	case selected != nil:
@@ -189,23 +196,23 @@ page_servers :: proc(menu: ^Menu) {
 	}
 }
 
-// Off to `server`: at once, or by Join by address with its address and a slash filled
-// in when it asks a password, which is typed after them.
+// Off to `server`: at once, or, when it asks a password, its address and a slash put in
+// the address row, the password to be typed after them and Enter to join.
 @(private = "file")
 join_server :: proc(menu: ^Menu, server: ^online.Browser_Server) {
 	network := &menu.config.network
 	address := fmt.tprintf("%s:%d", utils.short_string_text(&server.address.ip), server.address.port)
 	network.server = strings.clone(address, config_allocator(menu))
-	menu.join.connect_asked = true
 	if !server.info.password {
+		menu.join.connect_asked = true
 		menu.request = Connect{network.server}
 		return
 	}
 	network.password = "" // another server's, if any
-	go_page(menu, .Join)
+	menu.join.password_asked = true
 	k := &menu.kit
 	k.in_page = true
-	k.nav = 0 // the server field, its password to be typed
+	k.nav = 0 // the address row, the page's first
 	ui.edit_begin(k, &menu.join, fmt.tprintf("%s/", address), TARGET_MAX)
 }
 
