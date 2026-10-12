@@ -9,8 +9,8 @@ import "../../../core/utils"
 
 // The sparks each tick makes: the bursts its events and rulings call for (Bullets.pas,
 // SpriteEffects.pas), the jets' flames, the clips and casings out of the reloads, the
-// corpses' bleeding and burning (Sprites.pas), and the map's weather
-// (WeatherEffects.pas). From the C client's render/sparks.c.
+// corpses' bleeding and burning (Sprites.pas), the rockets' smoke (Bullets.pas), and the
+// map's weather (WeatherEffects.pas). From the C client's render/sparks.c.
 
 // One in this many ticks a torn joint drips, by how full the pool already is
 // (BLOOD_RANDOM_LOW, _NORMAL, _HIGH).
@@ -39,6 +39,7 @@ sparks_burst :: proc(sparks: ^Sparks, game: ^sim.Game) {
 		if respawn, is_respawn := ruling.(sim.Respawn); is_respawn do spawn_spark(sparks, game, respawn)
 	}
 	jets_burn(sparks, game)
+	rockets_smoke(sparks, game)
 	reloads_drop(sparks, game)
 	corpses_bleed(sparks, game)
 	wounded_bleed(sparks, game)
@@ -381,4 +382,15 @@ below :: proc(sparks: ^Sparks, n: int) -> int {
 @(private = "file")
 spread :: proc(sparks: ^Sparks, amount: f32) -> f32 {
 	return (random(sparks) * 2 - 1) * amount
+}
+
+// Each rocket in flight, every tick: a puff of its smoke trail, rising, and one tick in
+// two a little fire going its way (Bullets.pas, law missile smoke).
+@(private = "file")
+rockets_smoke :: proc(sparks: ^Sparks, game: ^sim.Game) {
+	for &bullet in game.world.bullets {
+		if !bullet.active || bullet.style != .LAW do continue
+		spark_add(sparks, .Missile_Smoke, bullet.pos, {0, -1.5}, 50)
+		if below(sparks, 2) == 0 do spark_add(sparks, .Fire_Spark, bullet.pos, bullet.velocity, 5)
+	}
 }

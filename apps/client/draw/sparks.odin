@@ -97,6 +97,7 @@ Spark_Kind :: enum u8 {
 	Small_Dirt,
 	Fire_Spark,
 	Blast_Flame,
+	Missile_Smoke, // a rocket's trail, rising and spreading as it fades
 }
 
 Spark_Art :: struct {
@@ -265,7 +266,7 @@ spark_step :: proc(sparks: ^Sparks, spark: ^Spark, polymap: ^res.Poly_Map) {
 spark_moves :: proc(kind: Spark_Kind) -> bool {
 	#partial switch kind {
 	case .Smoke, .Chip, .Little_Blood, .Blood, .Fire_Chip, .Grey_Chip, .Mini_Smoke, .Little_Smoke, .Shell, .Clip, .Jet_Fire,
-	     .Spit, .Match, .Cigar, .Piss, .Rain, .Sand, .Snow, .Dirt, .Small_Dirt, .Fire_Spark, .Blast_Flame:
+	     .Spit, .Match, .Cigar, .Piss, .Rain, .Sand, .Snow, .Dirt, .Small_Dirt, .Fire_Spark, .Blast_Flame, .Missile_Smoke:
 		return true
 	}
 	return false
@@ -414,6 +415,9 @@ draw_spark :: proc(art: ^Spark_Art, spark: ^Spark, p: utils.Vec2, l: f32) {
 		at := p - {26, 48}
 		if frame > 0 do spark_sprite(art.smoke[frame - 1], at, 1, 0, l * 2 + 10, {204, 204, 204, 255})
 		spark_sprite(art.smoke[frame], at, 1, 0, l * 3 + 10, {222, 222, 222, 255})
+	case .Missile_Smoke: // risen from where it was put as it ages, and spread
+		scale := 1.5 + 12.4 / max(l, 1)
+		spark_sprite(images[.Smoke], p - {0, 50 - l}, scale, 0, l * 2)
 	case .Big_Smoke:
 		scale := 0.5 + 16 / (l + 50)
 		spark_sprite(images[.Big_Smoke], p - {14 * scale, 30}, scale, 0, l / 3.3)
