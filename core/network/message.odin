@@ -145,6 +145,7 @@ Msg_Map :: struct {
 	map_name: Map_Name,
 	hostname: Name,              // the server's, for the scoreboard
 	limit:    u16,               // the captures that win the round, for the HUD
+	grenades: u8,                // the grenades a soldier carries at most: none, and no grenade kits, for 0
 	hash:     [MAP_HASH_SIZE]u8, // the map's .pms, SHA-256: a copy with another isn't this map; zeros for any
 	art:      u8,                // its own art files, a Map_Art each to follow
 }
@@ -154,6 +155,7 @@ msg_map :: proc(b: ^Buffer, m: ^Msg_Map) {
 	net_string(b, &m.map_name)
 	net_string(b, &m.hostname)
 	net_u16(b, &m.limit)
+	net_u8(b, &m.grenades)
 	for &byte in m.hash do net_u8(b, &byte)
 	net_u8(b, &m.art)
 }

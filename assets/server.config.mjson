@@ -23,6 +23,8 @@ server: {
   time_limit: 15
   // the captures that win a round
   capture_limit: 10
+  // the grenades a soldier carries at most, and is placed with, 0 to 5; 0 for none, and no grenade kits on the maps
+  max_grenades: 2
   // the percentage of players whose yes passes a vote
   vote_percent: 60
   // the folder of Lua scripts the server runs: every .lua in it, in name order (docs/scripting.md); a .lua.disabled is passed over; none ship with the server, and examples are at https://github.com/soldatreloaded/soldatreloaded-scripts; empty for none

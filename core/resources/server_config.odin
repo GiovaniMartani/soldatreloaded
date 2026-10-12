@@ -44,6 +44,7 @@ Host_Settings :: struct {
 	rcon:           bool `jsoncomment:"remote admins: TCP on the game's port number, OpenSoldat's admin protocol (its tools, or telnet), the admin password first and then the admin commands; off without an admin password. The password goes in the clear: keep it to networks you trust"`,
 	time_limit:     i32 `jsoncomment:"minutes a round lasts"`,
 	capture_limit:  i32 `jsoncomment:"the captures that win a round"`,
+	max_grenades:   i32 `jsoncomment:"the grenades a soldier carries at most, and is placed with, 0 to 5; 0 for none, and no grenade kits on the maps"`,
 	vote_percent:   i32 `jsoncomment:"the percentage of players whose yes passes a vote"`,
 	scripts:        string `jsoncomment:"the folder of Lua scripts the server runs: every .lua in it, in name order (docs/scripting.md); a .lua.disabled is passed over; none ship with the server, and examples are at https://github.com/soldatreloaded/soldatreloaded-scripts; empty for none"`,
 }
@@ -97,6 +98,7 @@ DEFAULT_SERVER_CONFIG := Server_Config {
 		port          = 23073,
 		time_limit    = 15,
 		capture_limit = 10,
+		max_grenades  = 2,
 		vote_percent  = 60,
 		rcon          = true,
 		scripts       = "scripts",

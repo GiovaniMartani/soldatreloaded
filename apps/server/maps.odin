@@ -117,6 +117,7 @@ map_read :: proc(sv: ^Server) -> ([]u8, bool) {
 // The round's map to one peer, its own art after it, and the scripts' texts in it.
 tell_map :: proc(sv: ^Server, peer: net.Peer) {
 	m := net.Msg_Map{round = sv.round, map_name = sv.map_name, limit = u16(clamp(sv.game.settings.capture_limit, 0, i32(max(u16)))), hash = sv.map_hash, art = u8(len(sv.map_art))}
+	m.grenades = u8(clamp(sv.game.settings.max_grenades, 0, 255))
 	utils.short_string_set(&m.hostname, server_hostname(sv))
 	net.net_send_message(peer, .Map, net.msg_map, &m)
 	for &art, i in sv.map_art {

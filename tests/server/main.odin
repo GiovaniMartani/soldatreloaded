@@ -689,3 +689,51 @@ script_world_texts :: proc(t: ^testing.T) {
 	testing.expect(t, sv.round > 1, "the next round")
 	testing.expect_value(t, kept, 0)
 }
+
+// A server of no grenades: none on its maps, its Map says so, and a soldier placed holds
+// none; and the game's own two, with their kits, for a config that doesn't say.
+@(test)
+no_grenades :: proc(t: ^testing.T) {
+	testing.expect(t, net.net_init())
+	defer net.net_shutdown()
+	grenade_kits :: proc(sv: ^server.Server) -> (n: int) {
+		for &thing in sv.game.world.things do n += int(thing.kind == .Grenade_Kit)
+		return
+	}
+
+	sv := new(server.Server)
+	defer free(sv)
+	config := res.DEFAULT_SERVER_CONFIG
+	config.server.port = PORT
+	config.server.max_grenades = 0
+	if !testing.expect(t, server.server_init(sv, {config = &config, data_dir = game.DATA_DIR, first_map = "ctf_Ash"})) do return
+	defer server.server_destroy(sv)
+	testing.expect_value(t, sv.game.settings.max_grenades, 0)
+	testing.expect_value(t, grenade_kits(sv), 0)
+
+	c := new(Test_Client)
+	defer free(c)
+	testing.expect(t, client_open(c, "Runner"))
+	defer client_close(c)
+	mapped := pump_until(sv, {c}, proc(cs: []^Test_Client) -> bool { return cs[0].mapped })
+	if !testing.expect(t, mapped, "the client is told the map") do return
+	testing.expect_value(t, c.map_msg.grenades, 0)
+	slot, added := server.server_add_bot(sv, .Alpha)
+	if testing.expect(t, added, "a bot") {
+		for _ in 0 ..< 10 * game.TICK_RATE {
+			server.server_pump(sv, server.TICK_SECONDS)
+			if !sv.game.world.soldiers[slot].vitals.dead do break
+		}
+		testing.expect_value(t, sv.game.world.soldiers[slot].arsenal.grenades, 0)
+	}
+
+	// the game's own
+	other := new(server.Server)
+	defer free(other)
+	defaults := res.DEFAULT_SERVER_CONFIG
+	defaults.server.port = PORT + 1
+	if !testing.expect(t, server.server_init(other, {config = &defaults, data_dir = game.DATA_DIR, first_map = "ctf_Ash"})) do return
+	defer server.server_destroy(other)
+	testing.expect_value(t, other.game.settings.max_grenades, 2)
+	testing.expect(t, grenade_kits(other) > 0, "ctf_Ash has its grenade kits")
+}
