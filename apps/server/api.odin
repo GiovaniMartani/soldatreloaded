@@ -10,6 +10,7 @@ import lua "vendor:lua/5.4"
 
 import "../../core/game"
 import net "../../core/network"
+import res "../../core/resources"
 import "../../core/utils"
 import "lists"
 
@@ -30,6 +31,7 @@ server_api := [?]lua.L_Reg {
 	{"next_map", l_next_map},
 	{"map", l_map},
 	{"maps", l_maps},
+	{"spawns", l_spawns},
 	{"round", l_round},
 	{"tick", l_tick},
 	{"time_left", l_time_left},
@@ -37,6 +39,7 @@ server_api := [?]lua.L_Reg {
 	{"players", l_players},
 	{"player", l_player},
 	{"kick", l_kick},
+	{"kill", l_kill},
 	{"add_bot", l_add_bot},
 	{"set_team", l_set_team},
 	{"ban", l_ban},
@@ -69,13 +72,14 @@ push_name :: proc(L: ^lua.State, sv: ^Server, slot: game.Soldier_Id) {
 	push_string(L, utils.short_string_text(&sv.players[slot].name))
 }
 
-// A player's table pushed: its slot, name, team, tally, ping, health, and whether it is
-// a bot, alive and watching; and a person's address and hardware ID, which a bot hasn't.
+// A player's table pushed: its slot, name, team, tally, ping, health, where it is, and
+// whether it is a bot, alive and watching; and a person's address and hardware ID, which
+// a bot hasn't.
 @(private)
 push_player :: proc(L: ^lua.State, sv: ^Server, slot: game.Soldier_Id) {
 	soldier := &sv.game.world.soldiers[slot]
 	player := &sv.players[slot]
-	lua.createtable(L, 0, 13)
+	lua.createtable(L, 0, 15)
 	if player.peer != nil {
 		push_string(L, lists.address_text(net.peer_address(player.peer)))
 		lua.setfield(L, -2, "ip")
@@ -106,6 +110,10 @@ push_player :: proc(L: ^lua.State, sv: ^Server, slot: game.Soldier_Id) {
 	lua.setfield(L, -2, "spectator")
 	lua.pushnumber(L, lua.Number(soldier.vitals.health))
 	lua.setfield(L, -2, "health")
+	lua.pushnumber(L, lua.Number(soldier.body.pos.x))
+	lua.setfield(L, -2, "x")
+	lua.pushnumber(L, lua.Number(soldier.body.pos.y))
+	lua.setfield(L, -2, "y")
 }
 
 // Every player's table, in slot order.
@@ -276,6 +284,53 @@ l_maps :: proc "c" (L: ^lua.State) -> c.int {
 	return 1
 }
 
+// The spawn points' kinds by the names server.spawns gives them.
+@(private = "file")
+spawn_kind_names := [res.Spawn_Kind]string {
+	.General        = "general",
+	.Alpha          = "alpha",
+	.Bravo          = "bravo",
+	.Charlie        = "charlie",
+	.Delta          = "delta",
+	.Alpha_Flag     = "alpha_flag",
+	.Bravo_Flag     = "bravo_flag",
+	.Grenade_Kit    = "grenade_kit",
+	.Medical_Kit    = "medical_kit",
+	.Cluster_Kit    = "cluster_kit",
+	.Vest_Kit       = "vest_kit",
+	.Flamer_Kit     = "flamer_kit",
+	.Berserk_Kit    = "berserk_kit",
+	.Predator_Kit   = "predator_kit",
+	.Yellow_Flag    = "yellow_flag",
+	.Bow            = "bow",
+	.Stationary_Gun = "stationary_gun",
+}
+
+// server.spawns(): the map's spawn points, in the map's order: {kind, x, y} each, kind
+// one of spawn_kind_names ("alpha", "bravo_flag", "medical_kit", ...).
+@(private = "file")
+l_spawns :: proc "c" (L: ^lua.State) -> c.int {
+	s := script_of(L)
+	context = s.ctx
+	lua.newtable(L)
+	polymap := s.server.game.world.polymap
+	if polymap == nil do return 1
+	n: lua.Integer
+	for spawnpoint in polymap.spawnpoints {
+		if !spawnpoint.active || spawnpoint.kind < min(res.Spawn_Kind) || spawnpoint.kind > max(res.Spawn_Kind) do continue
+		lua.createtable(L, 0, 3)
+		push_string(L, spawn_kind_names[spawnpoint.kind])
+		lua.setfield(L, -2, "kind")
+		lua.pushnumber(L, lua.Number(spawnpoint.pos.x))
+		lua.setfield(L, -2, "x")
+		lua.pushnumber(L, lua.Number(spawnpoint.pos.y))
+		lua.setfield(L, -2, "y")
+		n += 1
+		lua.rawseti(L, -2, n)
+	}
+	return 1
+}
+
 @(private = "file")
 l_map :: proc "c" (L: ^lua.State) -> c.int {
 	s := script_of(L)
@@ -347,6 +402,24 @@ l_kick :: proc "c" (L: ^lua.State) -> c.int {
 		player_kick(s.server, id, reason)
 	}
 	return 0
+}
+
+// server.kill(slot): the soldier killed at the next tick, as an admin's pkill: true, or
+// false for nobody in `slot`, or one not alive.
+@(private = "file")
+l_kill :: proc "c" (L: ^lua.State) -> c.int {
+	s := script_of(L)
+	context = s.ctx
+	sv := s.server
+	slot := lua.L_checkinteger(L, 1)
+	alive := false
+	if slot_present(sv, slot) {
+		soldier := &sv.game.world.soldiers[slot]
+		alive = soldier.active && !soldier.vitals.dead && soldier.team != .Spectator
+	}
+	if alive do sv.suicides[slot] = false // a kill, not a brutal one
+	lua.pushboolean(L, b32(alive))
+	return 1
 }
 
 // server.add_bot([team [, name]]): its slot, or nil.

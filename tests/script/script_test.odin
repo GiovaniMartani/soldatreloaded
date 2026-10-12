@@ -277,6 +277,20 @@ hosted :: proc(t: ^testing.T) {
 	testing.expect(t, holds(s, "server.kick(1)") && holds(s, "assert(left and server.player(1) == nil and #server.players() == 1)"),
 		"and kicks it, and hears it leave")
 
+	// where a player is, the map's spawn points, and a kill asked for
+	pos := sv.game.world.soldiers[0].body.pos
+	testing.expect(t, holds(s, fmt.tprintf("local p = server.player(0); assert(p.x == %v and p.y == %v, p.x .. ',' .. p.y)", pos.x, pos.y)),
+		"the player's table says where it is")
+	testing.expect(t, holds(s, "local k = {}; for _, sp in ipairs(server.spawns()) do k[sp.kind] = (k[sp.kind] or 0) + 1; assert(type(sp.x) == 'number' and type(sp.y) == 'number') end; assert(k.alpha and k.alpha_flag == 1 and k.bravo_flag == 1)"),
+		"the map's spawn points, its two flags among them")
+	alive := pump_until(sv, s, "(server.player(0).alive or nil)", 10 * game.TICK_RATE)
+	if testing.expect(t, alive, "the bot is alive") {
+		testing.expect(t, holds(s, "assert(server.kill(0) and not server.kill(9))"), "the script kills it; not nobody")
+		pump(sv, s)
+		testing.expect(t, holds(s, "assert(not server.player(0).alive and not server.kill(0) and kills == 1)"), "and it is dead, heard, not to be killed again")
+	}
+	testing.expect(t, holds(s, "kills = 0"), "the kills counted afresh")
+
 	// the ticks, every second, and a kill heard among the tick's rulings
 	pump(sv, s, 5)
 	testing.expect(t, holds(s, "assert(ticks >= 5, ticks)"), "on_tick runs with every tick")

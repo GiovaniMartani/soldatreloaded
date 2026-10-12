@@ -66,7 +66,8 @@ in seconds, `scores` (`{alpha = n, bravo = n}`), `winner` (`"alpha"` or `"bravo"
 
 A player table has `slot`, `name`, `team` (`"none"`, `"alpha"`, `"bravo"`,
 `"charlie"`, `"delta"` or `"spectator"`), `kills`, `deaths`, `flags`, `ping`, `health`,
-and `bot`, `alive` and `spectator` as booleans; and a person's `ip` (`"1.2.3.4"`) and
+`x` and `y` (where it is, in the map's units, as `server.spawns()` gives them), and `bot`,
+`alive` and `spectator` as booleans; and a person's `ip` (`"1.2.3.4"`) and
 `hwid` (its machine's hardware ID, eleven hex digits), as the bans know them: a bot has
 neither, and a client that sent no hardware ID has no `hwid`. Slots count from 0 and are
 what the players are known by on the wire; a slot is reused once its player has left.
@@ -84,12 +85,14 @@ what the players are known by on the wire; a slot is reused once its player has 
 | `server.set_password([password])` | the password players join with, from now on until the server stops (the config's after); none, or `""`, for none: `true`, or `false` for one longer than 32 letters or with a space or quote |
 | `server.next_map([map])` | the round ends now; on `map` if given, else the rotation's next: `true`, or `false` (and nothing changes) for a map the server hasn't got, which it couldn't load |
 | `server.maps()` | the server's list of maps, the one its votes and map window pick from: the rotation (`maps` in server.config.mjson), or every map it has when there is none |
+| `server.spawns()` | the map's spawn points, in its order: `{kind = ..., x = ..., y = ...}` each, `kind` one of `"general"`, `"alpha"`, `"bravo"`, `"charlie"`, `"delta"`, `"alpha_flag"`, `"bravo_flag"`, `"yellow_flag"`, the kits' (`"medical_kit"`, `"grenade_kit"`, `"cluster_kit"`, `"vest_kit"`, `"flamer_kit"`, `"berserk_kit"`, `"predator_kit"`), `"bow"` and `"stationary_gun"` |
 | `server.map()`, `server.round()` | the map; the round, from 1 |
 | `server.tick()`, `server.time_left()` | the world's tick; the seconds left in the round |
 | `server.scores()` | `{alpha = n, bravo = n}` |
 | `server.players()` | every player's table, in slot order |
 | `server.player(slot)` | one player's, or `nil` |
 | `server.kick(slot [, reason])` | the player put off, told `reason`; a bot is simply removed |
+| `server.kill(slot)` | the soldier killed at the next tick, as an admin's `pkill`, and the kill heard as a suicide: `true`, or `false` for nobody in `slot`, or one not alive |
 | `server.ban(slot [, minutes [, reason]])` | the player banned by its address and its machine both, as an admin's `ban`, for `minutes` (none, or 0, for ever), and put off, told `reason`: `true`, or `false` for a slot no person has: a bot isn't banned (`server.kick` removes one) |
 | `server.ban_ip(ip [, minutes [, reason]])` | an address banned, as `banip`, and anyone on from it put off: `true`, or `false` for text that isn't an address |
 | `server.ban_hwid(hwid [, minutes [, reason]])` | a machine banned by its hardware ID, as `banhw`, and anyone on from it put off: `true`, or `false` for text that isn't a hardware ID |
