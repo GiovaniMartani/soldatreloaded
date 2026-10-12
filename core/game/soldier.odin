@@ -327,7 +327,7 @@ soldier_spawn :: proc(world: ^World, resources: ^Resources, id: Soldier_Id, resp
 		arsenal = {
 			primary = weapon_state(resources, respawn.primary),
 			secondary = weapon_state(resources, respawn.secondary),
-			grenades = 1,
+			grenades = world.rules.max_grenades / 2, // as the original's sv_maxgrenades div 2: 1 of the 2 the game's own allow
 			grenade_can_throw = true,
 		},
 		aim = {distance = DEFAULT_AIM_DISTANCE, collider_distance = 255},

@@ -7,6 +7,7 @@ import "core:time"
 import ai "../../../core/bots"
 import sim "../../../core/game"
 import res "../../../core/resources"
+import "../../../core/utils"
 import "../draw"
 import "../hud"
 import "../input"
@@ -16,9 +17,11 @@ import "../input"
 // bots' chat heard here.
 
 // A command said in the chat, where there is no server to take it: what a server does
-// for its players (apps/server/chat.odin's player_command), done here for me. The emotes
-// (/tabac, /smoke, /takeoff, /victory, /breakdown, /dab, /yeah, /piss, /mercy, /pwn), /kill and /brutalkill, /dummies,
-// /team, and /help; the votes are a server's.
+// for its players (apps/server/chat.odin's player_command), and for its admins
+// (apps/server/admin.odin), done here for me. The emotes (/tabac, /smoke, /takeoff,
+// /victory, /breakdown, /dab, /yeah, /piss, /mercy, /pwn), /kill and /brutalkill,
+// /dummies, /team, /map, /restart, /nextmap, /addbot, /addbot1, /addbot2, /kick, and
+// /help; the votes are a server's.
 @(private = "package")
 offline_command :: proc(match: ^Match, text: string) {
 	word, _, rest := strings.partition(text, " ")
@@ -36,10 +39,21 @@ offline_command :: proc(match: ^Match, text: string) {
 		}
 	case "dummies": // soldiers flying straight up and down beside me, to try shots on
 		dummies_command(match, rest)
+	case "addbot", "addbot1", "addbot2":
+		offline_addbot(match, word, strings.trim_space(rest))
+	case "kick":
+		offline_kick(match, strings.trim_space(rest))
+	case "map":
+		offline_map(match, strings.trim_space(rest))
+	case "restart": // the round again, on the same map
+		round_start(match)
+	case "nextmap":
+		next_round(match)
 	case "votemap", "votekick", "yes", "no":
 		hud.console_say(feed, hud.GAME_COLOR, "There are no votes offline.")
 	case "help":
 		hud.console_say(feed, hud.GAME_COLOR, "/team <1 alpha, 2 bravo>  /kill  /brutalkill  /dummies <how many, 0 to 6>")
+		hud.console_say(feed, hud.GAME_COLOR, "/map <name>  /restart  /nextmap  /addbot [name] (/addbot1 alpha, /addbot2 bravo)  /kick <bot>")
 		hud.console_say(feed, hud.GAME_COLOR, "Emotes: /tabac /smoke /takeoff /victory /breakdown /dab /yeah /piss /mercy /pwn")
 	case:
 		if !sim.soldier_taunt(me, word) do hud.console_say(feed, hud.GAME_COLOR, "Unknown command: /%s", word)
@@ -54,6 +68,8 @@ settings_from :: proc(offline: res.Offline_Settings) -> sim.Game_Settings {
 	s.weapons = res.GATHER_WEAPONS // the weapons a server plays by with no weapons.ini of its own, so offline plays as online
 	if offline.time_limit > 0 do s.time_limit = offline.time_limit * 60 * sim.TICK_RATE
 	if offline.capture_limit > 0 do s.capture_limit = offline.capture_limit
+	s.respawn_time = clamp(offline.respawn_time, 1, 30) * sim.TICK_RATE
+	s.max_grenades = clamp(offline.max_grenades, 0, 5)
 	return s
 }
 
@@ -120,24 +136,24 @@ round_start :: proc(match: ^Match) -> bool {
 	my_team := kept if kept == .Alpha || kept == .Bravo else .Alpha
 	match.loadout.primary = .Punch // the secondary the last picked, the config's at the start
 	spawn(game, me, my_team, match.loadout)
-	// the bots by team, alpha's first; the slots after them are let go
-	counts := match.bot_counts
-	alpha := bot_count(counts.alpha)
-	wanted := min(alpha + bot_count(counts.bravo), sim.MAX_PLAYERS - 1)
+	// the bots on their teams, each kept as it was (the config's, /addbot's); the slots
+	// with none let go
 	for id in 1 ..< sim.MAX_PLAYERS {
 		slot := sim.Soldier_Id(id)
-		if id > wanted {
+		team := match.bot_teams[id]
+		if team == .None {
 			ai.bots_detach(&match.bots, slot)
 			continue
 		}
 		if !ai.bots_has(&match.bots, slot) {
-			profile := ai.profile_random(match.profiles, &game.world.rng) or_break
+			profile, found := ai.profile_random(match.profiles, &game.world.rng)
+			if !found {
+				match.bot_teams[id] = .None
+				continue
+			}
 			ai.bots_attach(&match.bots, slot, profile, game.world.rng.state + u64(id))
 		}
-		profile := &match.bots.brains[id].profile
-		game.world.soldiers[id].player = {look = ai.profile_look(profile), bot = true}
-		team: res.Team = .Alpha if id <= alpha else .Bravo
-		spawn(game, slot, team, {profile.favourite, profile.secondary})
+		bot_spawn(match, slot, team)
 	}
 	ai.bots_new_round(&match.bots)
 	draw.snapshot_take(&match.before, &game.world) // a new round is a jump, not a journey
@@ -192,7 +208,165 @@ bot_said :: proc(user: rawptr, slot: sim.Soldier_Id, text: string) {
 	chat_heard(cast(^Match)user, slot, false, false, text)
 }
 
+
+// The bots the config asks for, a slot each: alpha's first, then bravo's, as many as there
+// is room for beside me. Each round seats them as they are (round_start).
+@(private = "package")
+bots_seat :: proc(match: ^Match, counts: res.Bot_Settings) {
+	match.bot_teams = {}
+	alpha := clamp(int(counts.alpha), 0, sim.MAX_PLAYERS - 1)
+	wanted := min(alpha + clamp(int(counts.bravo), 0, sim.MAX_PLAYERS - 1), sim.MAX_PLAYERS - 1)
+	for id in 1 ..= wanted do match.bot_teams[id] = .Alpha if id <= alpha else .Bravo
+}
+
+// The bot of `slot`, its brain attached, dressed as its profile and placed on `team`
+// with its favourite guns.
 @(private = "file")
-bot_count :: proc(n: i32) -> int {
-	return clamp(int(n), 0, sim.MAX_PLAYERS - 1)
+bot_spawn :: proc(match: ^Match, slot: sim.Soldier_Id, team: res.Team) {
+	profile := &match.bots.brains[slot].profile
+	match.game.world.soldiers[slot].player = {look = ai.profile_look(profile), bot = true}
+	spawn(match.game, slot, team, {profile.favourite, profile.secondary})
+}
+
+// /addbot [name], /addbot1 [name] on alpha, /addbot2 [name] on bravo: a bot by that
+// profile's name (any case), else one at random, on the emptier side for /addbot; with
+// no slot free, or no bot by the name, none.
+@(private = "file")
+offline_addbot :: proc(match: ^Match, word, name: string) {
+	feed := &match.hud.feed
+	world := &match.game.world
+	team := res.Team.Alpha if word == "addbot1" else .Bravo if word == "addbot2" else emptier_team(world)
+	profile: ^res.Bot_Profile
+	if name != "" {
+		for &p in match.profiles do if strings.equal_fold(utils.short_string_text(&p.name), name) do profile = &p
+		if profile == nil {
+			hud.console_say(feed, hud.GAME_COLOR, "No bot named %s.", name)
+			return
+		}
+	} else {
+		profile = profile_unused(match)
+		if profile == nil {
+			hud.console_say(feed, hud.GAME_COLOR, "No bots to add.")
+			return
+		}
+	}
+	slot, free := bot_slot(match)
+	if !free {
+		hud.console_say(feed, hud.GAME_COLOR, "The game is full.")
+		return
+	}
+	ai.bots_attach(&match.bots, slot, profile, world.rng.state + u64(slot))
+	match.bot_teams[slot] = team
+	bot_spawn(match, slot, team)
+	hud.console_say(feed, hud.GAME_COLOR, "%s has joined %s team.", utils.short_string_text(&profile.name), "alpha" if team == .Alpha else "bravo")
+}
+
+// The side with fewer on it, alpha on a tie.
+@(private = "file")
+emptier_team :: proc(world: ^sim.World) -> res.Team {
+	alpha, bravo := 0, 0
+	for &soldier in world.soldiers {
+		if !soldier.active do continue
+		if soldier.team == .Alpha do alpha += 1
+		if soldier.team == .Bravo do bravo += 1
+	}
+	return .Bravo if bravo < alpha else .Alpha
+}
+
+// A slot for a bot: not mine, nor a bot's, nor a dummy's.
+@(private = "file")
+bot_slot :: proc(match: ^Match) -> (slot: sim.Soldier_Id, ok: bool) {
+	for id in 1 ..< sim.MAX_PLAYERS {
+		if sim.Soldier_Id(id) == match.me || match.bot_teams[id] != .None || match.dummies[id].active do continue
+		if match.game.world.soldiers[id].active do continue
+		return sim.Soldier_Id(id), true
+	}
+	return
+}
+
+// /kick <name or slot>: a bot let go, what it carries dropped; by its name, any case, or
+// the start of it.
+@(private = "file")
+offline_kick :: proc(match: ^Match, arg: string) {
+	feed := &match.hud.feed
+	if arg == "" {
+		hud.console_say(feed, hud.GAME_COLOR, "/kick <bot's name>")
+		return
+	}
+	names := soldier_names(match)
+	slot := -1
+	if n, is_number := strconv.parse_int(arg); is_number && n > 0 && n < sim.MAX_PLAYERS {
+		slot = n
+	} else {
+		for name, id in names {
+			if match.bot_teams[id] == .None || name == "" do continue
+			if strings.equal_fold(name, arg) {
+				slot = id
+				break
+			}
+			if slot < 0 && strings.has_prefix(strings.to_lower(name, context.temp_allocator), strings.to_lower(arg, context.temp_allocator)) do slot = id
+		}
+	}
+	if slot < 0 || match.bot_teams[slot] == .None {
+		if slot == int(match.me) do hud.console_say(feed, hud.GAME_COLOR, "You can't kick yourself.")
+		else do hud.console_say(feed, hud.GAME_COLOR, "No bot %s.", arg)
+		return
+	}
+	world := &match.game.world
+	soldier := &world.soldiers[slot]
+	if soldier.active && soldier.carrying.held != nil do sim.things_ask(world, sim.Let_Go{sim.Soldier_Id(slot)})
+	soldier.active = false
+	world.corpses[slot].active = false
+	gone := strings.clone(names[slot], context.temp_allocator) // its brain's, which goes below
+	ai.bots_detach(&match.bots, sim.Soldier_Id(slot))
+	match.bot_teams[slot] = .None
+	hud.console_say(feed, hud.GAME_COLOR, "%s has left the game.", gone)
+}
+
+// /map <name>: that map of data/maps (any case) played now, a new round; the rotation
+// goes on from where it was after it.
+@(private = "file")
+offline_map :: proc(match: ^Match, arg: string) {
+	feed := &match.hud.feed
+	if arg == "" {
+		hud.console_say(feed, hud.GAME_COLOR, "/map <name>")
+		return
+	}
+	known := utils.list_files(sim.DATA_DIR + "/maps", ".pms", context.temp_allocator)
+	name := ""
+	for k in known do if strings.equal_fold(k, arg) do name = k
+	if name == "" {
+		hud.console_say(feed, hud.GAME_COLOR, "No map %s.", arg)
+		return
+	}
+	before := match.map_name
+	asked := strings.clone(name)
+	match.map_name = asked
+	if !round_start(match) {
+		delete(asked)
+		match.map_name = before
+		hud.console_say(feed, hud.GAME_COLOR, "%s couldn't be loaded.", name)
+		round_start(match)
+		return
+	}
+	delete(match.map_asked)
+	match.map_asked = asked
+	art_reload(match)
+}
+
+// A bot's profile at random, one not playing already if there is one: two of the same
+// name can't be told apart, nor kicked one at a time.
+@(private = "file")
+profile_unused :: proc(match: ^Match) -> ^res.Bot_Profile {
+	n := len(match.profiles)
+	if n == 0 do return nil
+	start := int(sim.rng_next(&match.game.world.rng) % u64(n))
+	names := soldier_names(match)
+	for i in 0 ..< n {
+		profile := &match.profiles[(start + i) % n]
+		taken := false
+		for name in names do taken ||= name == utils.short_string_text(&profile.name)
+		if !taken do return profile
+	}
+	return &match.profiles[start]
 }

@@ -65,7 +65,8 @@ Match :: struct {
 	maps:       []string, // offline: its own copies, played in turn
 	map_index:  int,
 	map_name:   string, // the one being played offline, which the menu is given back
-	bot_counts: res.Bot_Settings, // how many bots, on which teams
+	bot_teams:  [sim.MAX_PLAYERS]res.Team, // offline, each slot's bot's team, .None for none: the config's at the start, then /addbot's and /kick's
+	map_asked:  string, // offline, /map's, which map_name is while it plays; its own copy
 	mod:        res.Mod, // the art of each next map is the mod's
 	art:        draw.Art,
 	camera:     draw.Camera, // as the ticks move it
@@ -145,7 +146,7 @@ match_start :: proc(match: ^Match, maps: []string, config: ^res.Client_Config, m
 	match.maps = make([]string, len(maps))
 	for name, i in maps do match.maps[i] = strings.clone(name)
 	match.map_name = match.maps[0]
-	match.bot_counts = config.offline.bots
+	bots_seat(match, config.offline.bots)
 	match.mod = mod
 	match_open(match)
 	bots_join(match, config.offline.bots)
@@ -210,6 +211,7 @@ match_end :: proc(match: ^Match) {
 		sim.game_destroy(match.game)
 		free(match.game)
 	}
+	delete(match.map_asked)
 	for name in match.maps do delete(name)
 	delete(match.maps)
 	delete(match.record.name)

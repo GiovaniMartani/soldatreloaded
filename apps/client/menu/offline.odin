@@ -58,6 +58,8 @@ page_offline :: proc(menu: ^Menu) {
 	ui.section(k, "MATCH")
 	ui.slider(k, "Time limit", &settings.time_limit, 5, 60, 5, "%d min")
 	ui.slider(k, "Capture limit", &settings.capture_limit, 1, 30, 1, "%d")
+	ui.slider(k, "Respawn time", &settings.respawn_time, 1, 30, 1, "%d s")
+	ui.slider(k, "Grenades", &settings.max_grenades, 0, 5, 1, "%d")
 	ui.section(k, "BOTS")
 	ui.slider(k, "Alpha team", &settings.bots.alpha, 0, 15, 1, "%d")
 	ui.slider(k, "Bravo team", &settings.bots.bravo, 0, 15, 1, "%d")
