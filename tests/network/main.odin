@@ -97,7 +97,8 @@ place :: proc(g: ^game.Game, slot: int, team: res.Team) {
 }
 
 // The server's word of a placing heard after the snapshot made it: the soldier keeps the
-// weapon picked since; a placing not yet made is made with the word's.
+// weapon picked since; a placing not yet made is made with the word's, unless I chose
+// another loadout since, which the word, sent before the server heard it, lags behind.
 @(test)
 respawn_heard_late :: proc(t: ^testing.T) {
 	g := make_game(authority = false)
@@ -111,12 +112,28 @@ respawn_heard_late :: proc(t: ^testing.T) {
 	run(g, 1, {})
 	testing.expect_value(t, me.arsenal.primary.weapon, res.Weapon.MP5)
 
+	// a placing not yet made, with the loadout I chose: made with the word's
+	me.loadout = {primary = .Punch, secondary = .Knife}
 	next := late
 	next.life = 2
 	game.world_hear(&g.world, game.Ruling(next), g.world.tick)
 	run(g, 1, {})
 	testing.expect_value(t, me.vitals.life, 2)
 	testing.expect_value(t, me.arsenal.primary.weapon, res.Weapon.Punch)
+
+	// dead, I pick the Minigun; the server, not yet told, places me with the AK-74 before:
+	// my pick arms the life, and is my loadout, for the next state to carry to the server
+	game.world_ask_kill(&g.world, 0, false)
+	run(g, 2, {})
+	me.loadout = {primary = .Minigun, secondary = .Knife}
+	raced := next
+	raced.life = me.vitals.life + 1
+	raced.primary = .AK74
+	game.world_hear(&g.world, game.Ruling(raced), g.world.tick)
+	run(g, 1, {})
+	testing.expect_value(t, me.vitals.life, raced.life)
+	testing.expect_value(t, me.arsenal.primary.weapon, res.Weapon.Minigun)
+	testing.expect_value(t, me.loadout.primary, res.Weapon.Minigun)
 }
 
 @(private = "file")

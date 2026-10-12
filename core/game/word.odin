@@ -73,7 +73,9 @@ heard_apply :: proc(world: ^World, resources: ^Resources, authority: ^Authority,
 			// the round's first loadout, the soldier lost the weapon picked since, to fists.
 			respawn, is_respawn := w.(Respawn)
 			if !is_respawn || !placed_already(world, respawn) {
+				chosen := world.soldiers[respawn.target].loadout if is_respawn else {}
 				rule(world, resources, w, out)
+				if is_respawn do arm_chosen(world, resources, respawn, chosen, authority)
 				continue
 			}
 			soldier := &world.soldiers[respawn.target]
@@ -98,4 +100,19 @@ ruling_turn :: proc(ruling: Ruling) -> Turn {
 	case Damage, Kill, Respawn: return .Wounds
 	}
 	return .Things
+}
+
+// My own soldier placed by the server's word, on my machine: the loadout I chose while
+// dead, `chosen`, can reach the server after it has already placed me with the one
+// before, which the word then carries. My choice arms this life, as the snapshot's
+// placing does (stream_client's frame_apply), and the next state I send carries it to
+// the server. The server's own placings, and everyone else's, are as they are told.
+@(private = "file")
+arm_chosen :: proc(world: ^World, resources: ^Resources, respawn: Respawn, chosen: Loadout, authority: ^Authority) {
+	soldier := &world.soldiers[respawn.target]
+	if authority != nil || soldier.remote || !soldier.active || soldier.vitals.dead do return
+	if !weapon_is_primary(chosen.primary) || !weapon_is_secondary(chosen.secondary) do return
+	if chosen.primary == respawn.primary && chosen.secondary == respawn.secondary do return
+	soldier.loadout = chosen
+	soldier_arm(resources, soldier, chosen.primary, chosen.secondary)
 }
