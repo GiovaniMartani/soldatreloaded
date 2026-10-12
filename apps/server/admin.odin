@@ -332,19 +332,27 @@ ban :: proc(sv: ^Server, from: Caller, by, word, rest: string) {
 	}
 	seconds, said := ban_seconds(after)
 	reason := said if said != "" else "Banned by an admin"
-	expires := time.to_unix_seconds(time.now()) + seconds if seconds > 0 else 0
+	shown := name if name != "" else arg
+	expires, whom := ban_whom(sv, host, hwid, name, seconds, reason, by)
+	reply(sv, from, fmt.tprintf("%s (%s) banned %s.", shown, whom, ban_length(expires)))
+}
+
+// A ban on the address `host` (0 for none) and the machine `hwid` ("" for none), of the
+// player `name` ("" for none), for `seconds` (0 for ever), by `by`: kept, the last made
+// (for unbanlast), logged, and everyone on from that address or machine cut off, told
+// `reason`. When it ends, and whom it names, as text.
+ban_whom :: proc(sv: ^Server, host: u32, hwid, name: string, seconds: i64, reason, by: string) -> (expires: i64, whom: string) {
+	expires = time.to_unix_seconds(time.now()) + seconds if seconds > 0 else 0
 	lists.lists_ban(&sv.lists, host, hwid, expires, name, reason)
 	sv.last_ban = Last_Ban{host = host, hwid = lists.hwid_of(hwid)}
-	whom := lists.whom_text(host, hwid)
-	shown := name if name != "" else arg
-	reply(sv, from, fmt.tprintf("%s (%s) banned %s.", shown, whom, ban_length(expires)))
-	log.infof("%s banned %s (%s) %s: %s", by, shown, whom, ban_length(expires), reason)
-	// everyone on from that address or machine is cut off
+	whom = lists.whom_text(host, hwid)
+	log.infof("%s banned %s (%s) %s: %s", by, name if name != "" else whom, whom, ban_length(expires), reason)
 	for &player, i in sv.players {
 		if !is_whom(&player, host, hwid) do continue
 		player.kick_why = .Console
 		player_kick(sv, game.Soldier_Id(i), reason)
 	}
+	return
 }
 
 // An answer to whoever ran an admin command: the player, or the server's console.

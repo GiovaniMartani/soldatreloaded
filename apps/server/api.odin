@@ -39,6 +39,9 @@ server_api := [?]lua.L_Reg {
 	{"kick", l_kick},
 	{"add_bot", l_add_bot},
 	{"set_team", l_set_team},
+	{"ban", l_ban},
+	{"ban_ip", l_ban_ip},
+	{"ban_hwid", l_ban_hwid},
 	{"unban", l_unban},
 	{"unban_last", l_unban_last},
 	{"on", l_on},
@@ -414,5 +417,63 @@ l_unban_last :: proc "c" (L: ^lua.State) -> c.int {
 		push_string(L, hwid)
 		lua.setfield(L, -2, "hwid")
 	}
+	return 1
+}
+
+// A ban's length and reason from the script's arguments at `index` on: minutes (nil or
+// 0 for ever) and the reason.
+@(private = "file")
+ban_args :: proc(L: ^lua.State, index: c.int) -> (seconds: i64, reason: string) {
+	minutes := lua.L_optinteger(L, index, 0)
+	return i64(max(minutes, 0)) * 60, opt_string(L, index + 1, "Banned by the server")
+}
+
+// server.ban(slot [, minutes [, reason]]): the player banned by address and machine both,
+// as an admin's ban, for `minutes` (none, or 0, for ever), and cut off: true, or false
+// for a slot no person has: a bot isn't banned (server.kick removes one).
+@(private = "file")
+l_ban :: proc "c" (L: ^lua.State) -> c.int {
+	s := script_of(L)
+	context = s.ctx
+	sv := s.server
+	slot := lua.L_checkinteger(L, 1)
+	seconds, reason := ban_args(L, 2)
+	if !slot_present(sv, slot) || sv.players[slot].peer == nil {
+		lua.pushboolean(L, false)
+		return 1
+	}
+	player := &sv.players[slot]
+	hwid := player.hwid // kept here: the player's own goes as it is cut off
+	name := utils.short_string(24, utils.short_string_text(&player.name))
+	ban_whom(sv, net.peer_address(player.peer), utils.short_string_text(&hwid), utils.short_string_text(&name), seconds, reason, "a script")
+	lua.pushboolean(L, true)
+	return 1
+}
+
+// server.ban_ip(ip [, minutes [, reason]]): the address banned, as banip, and anyone on
+// from it cut off: true, or false for text that isn't an address.
+@(private = "file")
+l_ban_ip :: proc "c" (L: ^lua.State) -> c.int {
+	s := script_of(L)
+	context = s.ctx
+	text := check_string(L, 1)
+	seconds, reason := ban_args(L, 2)
+	host, ok := lists.address_parse(text)
+	if ok do ban_whom(s.server, host, "", "", seconds, reason, "a script")
+	lua.pushboolean(L, b32(ok))
+	return 1
+}
+
+// server.ban_hwid(hwid [, minutes [, reason]]): the machine banned, as banhw, and anyone
+// on from it cut off: true, or false for text that isn't a hardware ID.
+@(private = "file")
+l_ban_hwid :: proc "c" (L: ^lua.State) -> c.int {
+	s := script_of(L)
+	context = s.ctx
+	text := check_string(L, 1)
+	seconds, reason := ban_args(L, 2)
+	parsed, ok := lists.hwid_parse(text)
+	if ok do ban_whom(s.server, 0, utils.short_string_text(&parsed), "", seconds, reason, "a script")
+	lua.pushboolean(L, b32(ok))
 	return 1
 }

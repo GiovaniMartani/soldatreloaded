@@ -264,6 +264,13 @@ hosted :: proc(t: ^testing.T) {
 		"the script lifts a ban by its address, once")
 	testing.expect(t, holds(s, "server.command('banip 10.4.5.6 60'); local u = server.unban_last(); assert(u and u.ip == '10.4.5.6' and u.hwid == nil and server.unban_last() == nil)"),
 		"and the last ban made, once")
+
+	// bans made: not a bot, an address, a machine; each lifted again
+	testing.expect(t, holds(s, "assert(server.ban(0) == false and server.player(0) ~= nil)"), "a bot isn't banned, nor put off")
+	testing.expect(t, holds(s, "assert(server.ban_ip('10.7.7.7', 30, 'Cheating') and server.unban('10.7.7.7') and not server.ban_ip('not an address'))"),
+		"the script bans an address, which it can lift; not what isn't one")
+	testing.expect(t, holds(s, "assert(server.ban_hwid('0123456789A')); local u = server.unban_last(); assert(u and u.hwid == '0123456789A' and u.ip == nil and not server.ban_hwid('xyz'))"),
+		"and a machine, the last ban; not what isn't a hardware ID")
 	testing.expect(t, holds(s, "local p = server.players()[1]; assert(p.slot == 0 and p.team == 'alpha' and p.bot and p.kills == 0 and not p.spectator)"),
 		"the player's table says its slot, its team, that it is a bot, with no kills")
 	testing.expect(t, holds(s, "local b = server.add_bot('bravo'); assert(b == 1 and server.player(1).team == 'bravo')"), "the script adds a bot of its own")

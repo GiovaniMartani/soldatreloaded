@@ -90,6 +90,9 @@ what the players are known by on the wire; a slot is reused once its player has 
 | `server.players()` | every player's table, in slot order |
 | `server.player(slot)` | one player's, or `nil` |
 | `server.kick(slot [, reason])` | the player put off, told `reason`; a bot is simply removed |
+| `server.ban(slot [, minutes [, reason]])` | the player banned by its address and its machine both, as an admin's `ban`, for `minutes` (none, or 0, for ever), and put off, told `reason`: `true`, or `false` for a slot no person has: a bot isn't banned (`server.kick` removes one) |
+| `server.ban_ip(ip [, minutes [, reason]])` | an address banned, as `banip`, and anyone on from it put off: `true`, or `false` for text that isn't an address |
+| `server.ban_hwid(hwid [, minutes [, reason]])` | a machine banned by its hardware ID, as `banhw`, and anyone on from it put off: `true`, or `false` for text that isn't a hardware ID |
 | `server.add_bot([team [, name]])` | a bot, on `"alpha"` or `"bravo"` (else the emptier side), from `data/bots` by `name` or at random: its slot, or `nil` |
 | `server.set_team(slot, team)` | the player put on `"alpha"`, `"bravo"` or `"spectator"`, placed anew there and announced, as an admin's `setteam`: `true`, or `false` for nobody in `slot`, another team, or the team it is on |
 | `server.unban(who)` | the ban lifted on an address (`"1.2.3.4"`), a hardware ID, or the name the ban was given, as an admin's `unban`: `true`, or `false` if there was none |

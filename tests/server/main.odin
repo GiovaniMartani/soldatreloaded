@@ -575,3 +575,40 @@ script_answers_after_line :: proc(t: ^testing.T) {
 	testing.expect_value(t, utils.short_string_text(&first), "!hi")
 	testing.expect_value(t, utils.short_string_text(&second), "hello back")
 }
+
+// A script bans a person by slot: cut off, and its address and machine both in the ban
+// it made.
+@(test)
+script_bans :: proc(t: ^testing.T) {
+	testing.expect(t, net.net_init())
+	defer net.net_shutdown()
+	sv := new(server.Server)
+	defer free(sv)
+	config: res.Server_Config
+	testing.expect(t, open_server(sv, &config))
+	defer server.server_destroy(sv)
+
+	c := new(Test_Client)
+	defer free(c)
+	testing.expect(t, client_open(c, "Mallory"))
+	c.hwid = "0123456789A"
+	defer client_close(c)
+	welcomed := pump_until(sv, {c}, proc(cs: []^Test_Client) -> bool { return cs[0].welcomed })
+	if !testing.expect(t, welcomed, "Mallory joins") do return
+
+	s := new(server.Script)
+	defer free(s)
+	s.quiet = true
+	path := fmt.tprintf("%s/soldatreloaded_server_test_bans.lua", os.get_env("TEMP", context.temp_allocator) if ODIN_OS == .Windows else "/tmp")
+	utils.write_file(path, transmute([]byte)string("-- the API alone\n"))
+	defer os.remove(path)
+	if !testing.expect(t, server.script_open(s, sv, path), "a script state") do return
+	defer server.script_close(s)
+
+	ban := fmt.tprintf("assert(server.ban(%d, 30, 'Cheating'))", c.welcome.slot)
+	testing.expect(t, server.script_run(s, ban, "ban"), "the script bans Mallory")
+	cut := pump_until(sv, {c}, proc(cs: []^Test_Client) -> bool { return cs[0].closed })
+	testing.expect(t, cut, "and her line is closed")
+	testing.expect(t, server.script_run(s, "local u = server.unban_last(); assert(u and u.ip == '127.0.0.1' and u.hwid == '0123456789A')", "check"),
+		"the ban named her address and her machine both")
+}
