@@ -10,7 +10,7 @@ import "../utils"
 // sent over and over, unreliably, a lost one replaced by the next; news goes once, in
 // order. The two streams' messages are stream.odin's.
 
-VERSION :: 11 // of the wire: a client of another can't join
+VERSION :: 12 // of the wire: a client of another can't join
 DEFAULT_PORT :: 23073
 
 Name :: utils.Short_String(24)     // a player's
@@ -21,6 +21,7 @@ Map_Name :: utils.Short_String(64)
 Reason :: utils.Short_String(26)   // a kick vote's (the original's REASON_CHARS)
 MAP_HASH_SIZE :: 32                // a map's .pms, SHA-256
 Map_Art_Path :: utils.Short_String(96) // a map's art file, from the map's own folder: "scenery-gfx/tree.png"
+World_Text_Text :: utils.Short_String(64) // a text shown in the world
 
 Msg_Kind :: enum u8 {
 	Invalid,
@@ -39,6 +40,7 @@ Msg_Kind :: enum u8 {
 	Map_Fetch,    // client -> server: parts of the round's map, which it lacks
 	Map_Part,     // server -> client: a part of it
 	Map_Art,      // server -> client: one of the round's map's own art files, after its Map
+	World_Text,   // server -> client: a text shown at a place in the world, or taken away (a script's)
 }
 
 // Every kind but the two streams, which are state sent anew every tick; so a kind added
@@ -287,6 +289,30 @@ Msg_Weapons :: struct {
 
 msg_weapons :: proc(b: ^Buffer, m: ^Msg_Weapons) {
 	fields_serialize(b, WEAPONS_FIELDS, m, nil)
+}
+
+// A text a server script shows at a place in the world, on one of the layers a client
+// keeps (as OpenSoldat's WorldText): a layer said again is replaced, and an empty text
+// takes it away. It stays `seconds`, or with 0 until it is replaced or the round ends; a
+// new Map takes every layer away. `scale` is of the big messages' lettering.
+WORLD_TEXT_LAYERS :: 256
+
+Msg_World_Text :: struct {
+	layer:   u8,
+	text:    World_Text_Text,
+	pos:     utils.Vec2,
+	color:   utils.Rgba,
+	scale:   f32,
+	seconds: u16,
+}
+
+msg_world_text :: proc(b: ^Buffer, m: ^Msg_World_Text) {
+	net_u8(b, &m.layer)
+	net_string(b, &m.text)
+	net_vec2(b, &m.pos)
+	for &channel in m.color do net_u8(b, &channel)
+	net_f32(b, &m.scale)
+	net_u16(b, &m.seconds)
 }
 
 // ---------------------------------------------------------------------------------

@@ -78,6 +78,8 @@ what the players are known by on the wire; a slot is reused once its player has 
 |---|---|
 | `server.say(text [, color])` | a line to everyone, in the script colour, or `color`: `"RRGGBB"` or `{r, g, b}` |
 | `server.say_to(slot, text [, color])` | the same to one player |
+| `server.world_text(layer, text [, x, y [, options]])` | `text` shown to everyone with its middle at (`x`, `y`) in the map, on `layer` (0 to 255), replacing what that layer showed; `""` takes the layer away. `options`: `color` (`"RRGGBB"` or `{r, g, b}`, white if none), `scale` (of the big messages' lettering, 1 if none; it zooms with the view) and `seconds` (how long it stays; none, or 0, until replaced). It is kept for whoever joins, and a new round takes it away, as it does every layer |
+| `server.world_text_to(slot, layer, text [, x, y [, options]])` | the same to one player alone, over what everyone has on that layer, and not kept: a player who joins later has none |
 | `server.print(text)` | a line on the server's console only |
 | `server.command(text)` | a console command, as if typed: `"say hello"`, `"addbot1"`, `"nextmap"`, `"banip 1.2.3.4 60"`. Only the console's own commands (`apps/server/console.odin`): the settings are server.config.mjson's, and none is changed from here |
 | `server.pause()`, `server.unpause()` | the game stands still, nobody moving and the clock stopped, or goes on; `true` if that changed anything |

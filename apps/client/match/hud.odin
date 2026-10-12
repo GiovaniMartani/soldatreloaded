@@ -15,6 +15,7 @@ import "../demo"
 import "../draw"
 import "../hud"
 import "../input"
+import "../online"
 import "../sound"
 
 // The match's side of the HUD: what it is told of the world each frame (hud_data); the
@@ -108,6 +109,14 @@ hud_data :: proc(match: ^Match, config: ^res.Client_Config) -> (data: hud.Hud_Da
 			starter = utils.short_string_text(&vote.starter),
 			reason  = utils.short_string_text(&vote.reason),
 		}
+	}
+	if match.mode != .Offline {
+		shown := online.line_world_texts(match.line)
+		texts := make([]hud.World_Text, len(shown), context.temp_allocator)
+		for &m, i in shown {
+			texts[i] = {text = utils.short_string_text(&m.text), pos = m.pos, color = rl.Color(m.color), scale = m.scale}
+		}
+		data.world_texts = texts
 	}
 	data.emotes = {open = match.emote_wheel.open, pointer = match.emote_wheel.pointer, pick = -1}
 	if pick, picked := hud.emote_pick(match.emote_wheel.pointer); picked do data.emotes.pick = pick

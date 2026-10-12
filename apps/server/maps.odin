@@ -114,7 +114,7 @@ map_read :: proc(sv: ^Server) -> ([]u8, bool) {
 	return sv.map_file, true
 }
 
-// The round's map to one peer, and its own art after it.
+// The round's map to one peer, its own art after it, and the scripts' texts in it.
 tell_map :: proc(sv: ^Server, peer: net.Peer) {
 	m := net.Msg_Map{round = sv.round, map_name = sv.map_name, limit = u16(clamp(sv.game.settings.capture_limit, 0, i32(max(u16)))), hash = sv.map_hash, art = u8(len(sv.map_art))}
 	utils.short_string_set(&m.hostname, server_hostname(sv))
@@ -124,6 +124,7 @@ tell_map :: proc(sv: ^Server, peer: net.Peer) {
 		utils.short_string_set(&a.path, art.path)
 		net.net_send_message(peer, .Map_Art, net.msg_map_art, &a)
 	}
+	tell_world_texts(sv, peer) // after the Map, which takes a client's away
 }
 
 // The map window asks for the n-th of the server's maps: its name, and how many there

@@ -2,7 +2,7 @@ package online
 
 // The connection to a server: the join, the round's map (here, or fetched from the
 // server), the two streams, and what the server says reliably: chat, votes, the round's
-// end, the map window's answers, its weapons. What it hears of the world goes into the
+// end, the map window's answers, its weapons, its scripts' texts in the world. What it hears of the world goes into the
 // game it is given; what it hears for the player is kept to be taken, once (line_take_*).
 // What becomes of the line it says in lines (Said), for the HUD's console and the menu.
 //
@@ -23,6 +23,7 @@ import "core:fmt"
 import "core:log"
 import "core:strconv"
 import "core:strings"
+import "core:time"
 
 import sim "../../../core/game"
 import network "../../../core/network"
@@ -52,6 +53,13 @@ Said :: struct {
 	kind: Said_Kind,
 }
 
+// A text a server's script shows in the world, on its layer (Msg_World_Text).
+World_Text :: struct {
+	m:     network.Msg_World_Text,
+	shown: bool,
+	until: time.Tick, // when it goes; none, while it lasts until replaced
+}
+
 Line :: struct {
 	link:        network.Link,
 	state:       State,
@@ -68,6 +76,7 @@ Line :: struct {
 	fetch:       Fetch, // the round's map, while it comes from the server
 	inbox:       sa.Small_Array(INBOX, network.Msg_Chat), // chat heard and not yet taken, oldest first
 	vote:        network.Msg_Vote, // the vote on, kind none for none
+	world_texts: [network.WORLD_TEXT_LAYERS]World_Text, // a script's texts in the world, by layer
 	vote_seq:    u32, // votes begun, counted: a new one is told from the last
 	map_change:  Maybe(network.Msg_Map_Change), // the round's end, not yet taken
 	map_reply:   network.Msg_Map_Reply, // the server's answer to the map window's last question
@@ -113,6 +122,7 @@ line_connect :: proc(n: ^Line, address: string, hello: network.Msg_Hello) {
 	n.map_replied = false
 	n.weapons = nil // a new server says its own
 	n.vote = {}
+	n.world_texts = {}
 	sa.clear(&n.inbox)
 	utils.short_string_set(&n.address, fmt.tprintf("%s:%d", host, port))
 	say(n, .Plain, "Connecting to %s...", utils.short_string_text(&n.address))
@@ -140,14 +150,31 @@ line_disconnect :: proc(n: ^Line) {
 		n.playback = false
 		n.state = .Off
 		n.vote = {}
+		n.world_texts = {}
 		return
 	}
 	if n.link.host == nil do return
 	network.net_close(&n.link)
 	n.state = .Off
 	n.vote = {}
+	n.world_texts = {}
 	fetch_stop(&n.fetch)
 	say(n, .Plain, "Disconnected")
+}
+
+// The texts the server's scripts show in the world now: those whose time is up are gone.
+line_world_texts :: proc(n: ^Line, allocator := context.temp_allocator) -> []network.Msg_World_Text {
+	now := time.tick_now()
+	shown := make([dynamic]network.Msg_World_Text, 0, 16, allocator)
+	for &text in n.world_texts {
+		if !text.shown do continue
+		if text.until != {} && time.tick_diff(text.until, now) >= 0 {
+			text.shown = false
+			continue
+		}
+		append(&shown, text.m)
+	}
+	return shown[:]
 }
 
 // Welcomed: a slot mine, on a server or in a demo.
@@ -200,6 +227,7 @@ line_play :: proc(n: ^Line, slot: sim.Soldier_Id) {
 	n.map_replied = false
 	n.weapons = nil
 	n.vote = {}
+	n.world_texts = {}
 	n.vote_seq = 0
 	n.hostname = {}
 	sa.clear(&n.inbox)
@@ -357,6 +385,7 @@ heard :: proc(n: ^Line, game: ^sim.Game, data: []u8) {
 		n.map_name = m.map_name
 		n.hostname = m.hostname
 		n.limit = i32(m.limit)
+		n.world_texts = {} // the new world has none of the old's
 		network.client_stream_reset(&n.stream, m.round)
 		// the world is made of the map here, or of the server's once it has come, and its
 		// own art with it; a demo plays on whatever copy of its map is here
@@ -397,6 +426,13 @@ heard :: proc(n: ^Line, game: ^sim.Game, data: []u8) {
 		if !network.buffer_done(&b) do return
 		if m.kind != .None && (n.vote.kind == .None || n.vote.target != m.target) do n.vote_seq += 1
 		n.vote = m
+	case .World_Text:
+		m: network.Msg_World_Text
+		network.msg_world_text(&b, &m)
+		if !network.buffer_done(&b) do return
+		shown := m.text.length > 0
+		n.world_texts[m.layer] = {m = m, shown = shown}
+		if shown && m.seconds > 0 do n.world_texts[m.layer].until = time.tick_add(time.tick_now(), time.Duration(m.seconds) * time.Second)
 	case .Chat:
 		m: network.Msg_Chat
 		network.msg_chat(&b, &m)
