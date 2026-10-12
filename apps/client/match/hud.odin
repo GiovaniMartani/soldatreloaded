@@ -9,6 +9,7 @@ import "core:time/timezone"
 import rl "vendor:raylib"
 
 import sim "../../../core/game"
+import network "../../../core/network"
 import res "../../../core/resources"
 import "../../../core/utils"
 import "../demo"
@@ -37,6 +38,30 @@ Limbo :: struct {
 	was_dead:   bool,       // as of the tick before
 	died_at:    Maybe(u32), // the tick I died, while the menu waits to come up
 	team_asked: bool,       // the team menu shown since the join, which a new round keeps
+}
+
+// The line's texts at `place`, for the frame: a clock's time, from the tick it counts
+// from to the tick on show, after its text.
+@(private = "file")
+script_texts :: proc(match: ^Match, place: network.Text_Place) -> []hud.Script_Text {
+	shown := online.line_texts(match.line, place)
+	texts := make([]hud.Script_Text, len(shown), context.temp_allocator)
+	tick := match.game.world.tick
+	for &m, i in shown {
+		text := utils.short_string_text(&m.text)
+		if m.clock do text = fmt.tprintf("%s%s", text, clock_text(tick - m.clock_from if tick > m.clock_from else 0))
+		texts[i] = {text = text, pos = m.pos, color = rl.Color(m.color), scale = m.scale}
+	}
+	return texts
+}
+
+// `ticks` as a timer reads: seconds and thousandths, and the minutes before them once
+// there are any.
+@(private = "file")
+clock_text :: proc(ticks: u32) -> string {
+	ms := u64(ticks) * 1000 / sim.TICK_RATE
+	if ms >= 60_000 do return fmt.tprintf("%d:%02d.%03d", ms / 60_000, ms / 1000 % 60, ms % 1000)
+	return fmt.tprintf("%d.%03d", ms / 1000, ms % 1000)
 }
 
 // What the HUD shows of the world this frame.
@@ -111,12 +136,8 @@ hud_data :: proc(match: ^Match, config: ^res.Client_Config) -> (data: hud.Hud_Da
 		}
 	}
 	if match.mode != .Offline {
-		shown := online.line_world_texts(match.line)
-		texts := make([]hud.World_Text, len(shown), context.temp_allocator)
-		for &m, i in shown {
-			texts[i] = {text = utils.short_string_text(&m.text), pos = m.pos, color = rl.Color(m.color), scale = m.scale}
-		}
-		data.world_texts = texts
+		data.world_texts = script_texts(match, .World)
+		data.screen_texts = script_texts(match, .Screen)
 	}
 	data.emotes = {open = match.emote_wheel.open, pointer = match.emote_wheel.pointer, pick = -1}
 	if pick, picked := hud.emote_pick(match.emote_wheel.pointer); picked do data.emotes.pick = pick

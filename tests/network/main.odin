@@ -240,15 +240,21 @@ messages :: proc(t: ^testing.T) {
 	testing.expect(t, net.buffer_done(&b))
 	testing.expect_value(t, heard_chat, chat)
 
-	text := net.Msg_World_Text{layer = 255, text = utils.short_string(64, "Finish"), pos = {-1234.5, 678.25}, color = {0, 255, 0, 255}, scale = 0.3, seconds = 90}
-	bytes = net.build(buf[:], .World_Text, net.msg_world_text, &text)
-	b = net.buffer_reader(bytes)
-	heard_text: net.Msg_World_Text
-	net.msg_kind(&b, &kind)
-	net.msg_world_text(&b, &heard_text)
-	testing.expect(t, net.buffer_done(&b))
-	testing.expect_value(t, kind, net.Msg_Kind.World_Text)
-	testing.expect_value(t, heard_text, text)
+	// a script's texts: in the world, and on the screen with a clock
+	texts := [2]net.Msg_Text {
+		{place = .World, layer = 255, text = utils.short_string(64, "Finish"), pos = {-1234.5, 678.25}, color = {0, 255, 0, 255}, scale = 0.3, seconds = 90},
+		{place = .Screen, layer = 3, text = utils.short_string(64, "Time "), pos = {320, 360}, color = {255, 255, 255, 255}, scale = 0.5, clock = true, clock_from = 123456},
+	}
+	for &text in texts {
+		bytes = net.build(buf[:], .Text, net.msg_text, &text)
+		b = net.buffer_reader(bytes)
+		heard_text: net.Msg_Text
+		net.msg_kind(&b, &kind)
+		net.msg_text(&b, &heard_text)
+		testing.expect(t, net.buffer_done(&b))
+		testing.expect_value(t, kind, net.Msg_Kind.Text)
+		testing.expect_value(t, heard_text, text)
+	}
 
 	// a whole weapons mod goes in one message, within a packet, and comes back whole
 	weapons := net.Msg_Weapons{weapons = res.GATHER_WEAPONS}

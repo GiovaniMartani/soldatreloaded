@@ -24,6 +24,8 @@ server_api := [?]lua.L_Reg {
 	{"say_to", l_say_to},
 	{"world_text", l_world_text},
 	{"world_text_to", l_world_text_to},
+	{"screen_text", l_screen_text},
+	{"screen_text_to", l_screen_text_to},
 	{"print", l_print},
 	{"command", l_command},
 	{"pause", l_pause},
@@ -196,12 +198,14 @@ l_say_to :: proc "c" (L: ^lua.State) -> c.int {
 	return 0
 }
 
-// A world text from the script's arguments at `index` on: layer, text [, x, y [, options]],
-// options {color = "RRGGBB" or {r, g, b} (white), scale = 1, seconds = 0 (until replaced)}.
+// A text from the script's arguments at `index` on: layer, text [, x, y [, options]],
+// options {color = "RRGGBB" or {r, g, b} (white), scale = 1, seconds = 0 (until replaced),
+// clock = the tick a timer after the text counts from (none)}.
 @(private = "file")
-world_text_args :: proc(L: ^lua.State, index: c.int) -> (m: net.Msg_World_Text) {
+text_args :: proc(L: ^lua.State, index: c.int, place: net.Text_Place) -> (m: net.Msg_Text) {
+	m.place = place
 	layer := lua.L_checkinteger(L, index)
-	if layer < 0 || layer >= net.WORLD_TEXT_LAYERS do lua.L_argerror(L, index, "a layer is 0 to 255")
+	if layer < 0 || layer >= net.TEXT_LAYERS do lua.L_argerror(L, index, "a layer is 0 to 255")
 	m.layer = u8(layer)
 	utils.short_string_set(&m.text, check_string(L, index + 1))
 	m.pos = {f32(lua.L_optnumber(L, index + 2, 0)), f32(lua.L_optnumber(L, index + 3, 0))}
@@ -216,8 +220,28 @@ world_text_args :: proc(L: ^lua.State, index: c.int) -> (m: net.Msg_World_Text) 
 	m.scale = clamp(f32(lua.L_optnumber(L, -1, 1)), 0.05, 10)
 	lua.getfield(L, options, "seconds")
 	m.seconds = u16(clamp(lua.L_optinteger(L, -1, 0), 0, lua.Integer(max(u16))))
-	lua.pop(L, 3)
+	lua.getfield(L, options, "clock")
+	if !lua.isnil(L, -1) {
+		m.clock = true
+		m.clock_from = u32(clamp(lua.L_checkinteger(L, -1), 0, lua.Integer(max(u32))))
+	}
+	lua.pop(L, 4)
 	return
+}
+
+// A text shown at `place`: to everyone, kept, or with `to_one`, to the player in the slot
+// that comes first.
+@(private = "file")
+text_call :: proc(L: ^lua.State, place: net.Text_Place, to_one: bool) {
+	s := script_of(L)
+	slot: lua.Integer
+	if to_one do slot = lua.L_checkinteger(L, 1)
+	m := text_args(L, 2 if to_one else 1, place)
+	if !to_one {
+		text_send(s.server, &m)
+	} else if slot_present(s.server, slot) {
+		text_send(s.server, &m, Slot(slot))
+	}
 }
 
 // server.world_text(layer, text [, x, y [, options]]): a text at (x, y) in the world for
@@ -225,10 +249,8 @@ world_text_args :: proc(L: ^lua.State, index: c.int) -> (m: net.Msg_World_Text) 
 // whoever joins, until the round ends.
 @(private = "file")
 l_world_text :: proc "c" (L: ^lua.State) -> c.int {
-	s := script_of(L)
-	context = s.ctx
-	m := world_text_args(L, 1)
-	world_text_send(s.server, &m)
+	context = script_of(L).ctx
+	text_call(L, .World, false)
 	return 0
 }
 
@@ -236,11 +258,24 @@ l_world_text :: proc "c" (L: ^lua.State) -> c.int {
 // over what everyone has on that layer; not kept.
 @(private = "file")
 l_world_text_to :: proc "c" (L: ^lua.State) -> c.int {
-	s := script_of(L)
-	context = s.ctx
-	slot := lua.L_checkinteger(L, 1)
-	m := world_text_args(L, 2)
-	if slot_present(s.server, slot) do world_text_send(s.server, &m, Slot(slot))
+	context = script_of(L).ctx
+	text_call(L, .World, true)
+	return 0
+}
+
+// server.screen_text(layer, text [, x, y [, options]]) and screen_text_to(slot, ...): as
+// the world's, on the screen, at (x, y) in the 640 by 480 view, on layers of their own.
+@(private = "file")
+l_screen_text :: proc "c" (L: ^lua.State) -> c.int {
+	context = script_of(L).ctx
+	text_call(L, .Screen, false)
+	return 0
+}
+
+@(private = "file")
+l_screen_text_to :: proc "c" (L: ^lua.State) -> c.int {
+	context = script_of(L).ctx
+	text_call(L, .Screen, true)
 	return 0
 }
 

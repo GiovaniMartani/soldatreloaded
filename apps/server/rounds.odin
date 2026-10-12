@@ -97,7 +97,7 @@ round_start :: proc(sv: ^Server, map_name: string) -> bool {
 	utils.short_string_set(&sv.map_name, map_name)
 	map_identify(sv) // the new map's hash, and its file read anew when first asked for
 	net.wire_queue_init(&sv.words) // the old round's news is nobody's now
-	world_texts_clear(sv)          // and the scripts' texts in the old world
+	texts_clear(sv)                // and the scripts' texts of the old round
 	for &player, i in sv.players {
 		slot := game.Soldier_Id(i)
 		if player.bot {

@@ -45,7 +45,7 @@ Test_Client :: struct {
 	announcements: int, // and from the server itself
 	heard:         sa.Small_Array(16, utils.Short_String(128)), // every line's text, in the order it came
 	snapshots:     int,
-	world_texts:   sa.Small_Array(16, net.Msg_World_Text), // every world text, in the order it came
+	texts:         sa.Small_Array(16, net.Msg_Text), // every script's text, in the order it came
 	texts_mapped:  bool, // a world text came after the Map
 	stream:        net.Client_Stream,
 	game:          ^game.Game, // the client's world, made on the Map
@@ -100,10 +100,10 @@ client_pump :: proc(c: ^Test_Client) {
 				} else {
 					c.chats += 1
 				}
-			case .World_Text:
-				m: net.Msg_World_Text
-				net.msg_world_text(&b, &m)
-				sa.append(&c.world_texts, m)
+			case .Text:
+				m: net.Msg_Text
+				net.msg_text(&b, &m)
+				sa.append(&c.texts, m)
 				c.texts_mapped = c.mapped
 			case .Snapshot:
 				if c.game != nil && net.client_stream_hear(&c.stream, c.game, c.welcome.slot, e.data[:e.size]) do c.snapshots += 1
@@ -620,11 +620,11 @@ script_bans :: proc(t: ^testing.T) {
 		"the ban named her address and her machine both")
 }
 
-// A script's texts in the world: those for everyone kept and told to whoever joins after
-// its Map, one to a player alone not kept, an empty one taking a layer away, and a new
-// round taking them all.
+// A script's texts: those for everyone kept and told to whoever joins after its Map, one
+// to a player alone not kept, an empty one taking a layer away, the screen's layers apart
+// from the world's, a timer's clock, and a new round taking them all.
 @(test)
-script_world_texts :: proc(t: ^testing.T) {
+script_texts :: proc(t: ^testing.T) {
 	testing.expect(t, net.net_init())
 	defer net.net_shutdown()
 	sv := new(server.Server)
@@ -636,7 +636,7 @@ script_world_texts :: proc(t: ^testing.T) {
 	s := new(server.Script)
 	defer free(s)
 	s.quiet = true
-	path := fmt.tprintf("%s/soldatreloaded_server_test_world_texts.lua", os.get_env("TEMP", context.temp_allocator) if ODIN_OS == .Windows else "/tmp")
+	path := fmt.tprintf("%s/soldatreloaded_server_test_texts.lua", os.get_env("TEMP", context.temp_allocator) if ODIN_OS == .Windows else "/tmp")
 	utils.write_file(path, transmute([]byte)string("-- the API alone\n"))
 	defer os.remove(path)
 	if !testing.expect(t, server.script_open(s, sv, path), "a script state") do return
@@ -651,11 +651,11 @@ script_world_texts :: proc(t: ^testing.T) {
 	defer free(c)
 	testing.expect(t, client_open(c, "Runner"))
 	defer client_close(c)
-	told := pump_until(sv, {c}, proc(cs: []^Test_Client) -> bool { return sa.len(cs[0].world_texts) >= 2 })
+	told := pump_until(sv, {c}, proc(cs: []^Test_Client) -> bool { return sa.len(cs[0].texts) >= 2 })
 	if !testing.expect(t, told, "the joiner is told the texts kept") do return
 	testing.expect(t, c.texts_mapped, "after the Map, which would take them away")
-	testing.expect_value(t, sa.len(c.world_texts), 2)
-	first, second := sa.get(c.world_texts, 0), sa.get(c.world_texts, 1)
+	testing.expect_value(t, sa.len(c.texts), 2)
+	first, second := sa.get(c.texts, 0), sa.get(c.texts, 1)
 	testing.expect_value(t, utils.short_string_text(&first.text), "1")
 	testing.expect_value(t, first.layer, 0)
 	testing.expect_value(t, first.pos, [2]f32{100, -50})
@@ -665,18 +665,33 @@ script_world_texts :: proc(t: ^testing.T) {
 	testing.expect_value(t, second.layer, 1)
 	testing.expect(t, second.seconds > 0 && second.seconds <= 30, "what is left of its time")
 	testing.expect_value(t, second.color, utils.Rgba{255, 255, 255, 255})
+	testing.expect(t, first.place == .World && !first.clock, "in the world, with no clock")
 
 	// one to the runner alone, and it hears it
-	sa.clear(&c.world_texts)
+	sa.clear(&c.texts)
 	testing.expect(t, server.script_run(s, fmt.tprintf("server.world_text_to(%d, 0, 'next', 100, -50)", c.welcome.slot), "to"), "a text to one player")
-	heard := pump_until(sv, {c}, proc(cs: []^Test_Client) -> bool { return sa.len(cs[0].world_texts) >= 1 })
+	heard := pump_until(sv, {c}, proc(cs: []^Test_Client) -> bool { return sa.len(cs[0].texts) >= 1 })
 	if testing.expect(t, heard, "the player hears it") {
-		only := sa.get(c.world_texts, 0)
+		only := sa.get(c.texts, 0)
 		testing.expect_value(t, utils.short_string_text(&only.text), "next")
 	}
+	// on the screen: a timer to the runner, counting from the tick given, and one for
+	// everyone on layer 0, which is the screen's and not the world's
+	sa.clear(&c.texts)
+	testing.expect(t, server.script_run(s, fmt.tprintf("server.screen_text_to(%d, 2, '', 320, 360, {{clock = 1234, scale = 0.5}}); server.screen_text(0, 'Run!', 320, 100)", c.welcome.slot), "screen"),
+		"the script shows texts on the screen")
+	both := pump_until(sv, {c}, proc(cs: []^Test_Client) -> bool { return sa.len(cs[0].texts) >= 2 })
+	if testing.expect(t, both, "the player hears them") {
+		timer, title := sa.get(c.texts, 0), sa.get(c.texts, 1)
+		testing.expect(t, timer.place == .Screen && timer.layer == 2 && timer.clock && timer.clock_from == 1234 && timer.text.length == 0, "a timer alone, from tick 1234")
+		testing.expect_value(t, timer.pos, [2]f32{320, 360})
+		testing.expect(t, title.place == .Screen && title.layer == 0 && !title.clock, "and a title")
+	}
+	testing.expect(t, sv.texts[.Screen][0] != nil && sv.texts[.World][0] != nil, "the screen's layer 0 kept beside the world's")
+	testing.expect(t, sv.texts[.Screen][2] == nil, "the runner's own timer not kept")
 	kept := 0
-	for k in sv.world_texts do kept += int(k != nil)
-	testing.expect_value(t, kept, 2) // the player's own isn't kept
+	for layers in sv.texts do for k in layers do kept += int(k != nil)
+	testing.expect_value(t, kept, 3) // the player's own aren't kept
 
 	// a new round: nothing kept
 	server.server_change_map(sv, "ctf_Ash")
@@ -685,7 +700,7 @@ script_world_texts :: proc(t: ^testing.T) {
 		if sv.round > 1 do break
 	}
 	kept = 0
-	for k in sv.world_texts do kept += int(k != nil)
+	for layers in sv.texts do for k in layers do kept += int(k != nil)
 	testing.expect(t, sv.round > 1, "the next round")
 	testing.expect_value(t, kept, 0)
 }

@@ -126,7 +126,7 @@ tell_map :: proc(sv: ^Server, peer: net.Peer) {
 		utils.short_string_set(&a.path, art.path)
 		net.net_send_message(peer, .Map_Art, net.msg_map_art, &a)
 	}
-	tell_world_texts(sv, peer) // after the Map, which takes a client's away
+	tell_texts(sv, peer) // after the Map, which takes a client's away
 }
 
 // The map window asks for the n-th of the server's maps: its name, and how many there
