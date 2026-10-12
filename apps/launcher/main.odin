@@ -28,6 +28,7 @@ package launcher
 //
 //   release.odin   the newest release, its manifest, its notes and its zip, from GitHub
 //   update.odin    what an update brings and deletes, and doing it
+//   running.odin   the game running from the install closed before it is updated
 //   (downloads go through core/http, and the zip is read by core/utils's zip.odin)
 
 import "core:fmt"
@@ -124,6 +125,10 @@ check_and_update :: proc() {
 		fmt.printfln("Updating to v%s: %d files to bring, %d to delete.", latest.version, len(plan.fetch), len(plan.remove))
 	}
 
+	if !close_running_games() { // a game running from here holds its files open (running.odin)
+		fmt.printfln("Soldat Reloaded is still v%s.", installed.version)
+		return
+	}
 	if err := apply_update(plan, latest_text); err != "" {
 		fmt.printfln("Could not update: %s", err)
 		fmt.printfln("Soldat Reloaded is still v%s.", installed.version)
