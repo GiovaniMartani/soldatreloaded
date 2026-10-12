@@ -1,7 +1,10 @@
 package match
 
 import sa "core:container/small_array"
+import "core:math"
 import "core:math/rand"
+
+import rl "vendor:raylib"
 
 import sim "../../../core/game"
 import "../draw"
@@ -21,6 +24,8 @@ import "../input"
 // And a scoped Barrett shot of mine (the original's bullet Tracking): the camera rides
 // it, five ticks ahead, until it is gone or I stand up (graphics.track_shot).
 //
+// And the scroll's zoom, while I spectate or watch a demo (watch_zoom).
+//
 // And the original's screen shake, while the camera follows someone: a shot in their
 // view jolts it (mine always, others' with graphics.screen_shake, or their minigun's with
 // graphics.minigun_shake; Sprites.pas Fire), my chainsaw's bite does (Bullets.pas), and a
@@ -38,6 +43,8 @@ Watch :: struct {
 	was_watching: bool,                  // dead or a spectator as of the last tick
 	grace:        int,                   // ticks before fire, jet or jump moves the camera: a second from my death, then between switches
 	tracking:     Maybe(u32),            // the shot of mine the camera rides, by its number
+	zoom:         f32,                   // the scroll's zoom while I spectate or watch a demo, eased toward zoom_to: 1 (or 0) for none
+	zoom_to:      f32,
 }
 
 // After each tick, on the keys I pressed in it.
@@ -263,4 +270,31 @@ my_shot :: proc(match: ^Match, shot: u32) -> ^sim.Bullet {
 		if bullet.active && bullet.owner == match.me && bullet.shot == shot do return &bullet
 	}
 	return nil
+}
+
+// The scroll's zoom, while I spectate or watch a demo: each notch of the wheel a step in
+// or out, between seeing twice as far and twice as close, eased there; nothing while I
+// type, a menu is up or the settings are over the match (`held`), which have the wheel.
+// On a team, playing or dead, none: back to the game's own view at once, as I join one.
+ZOOM_STEP :: 1.15
+ZOOM_OUT :: 0.5
+ZOOM_IN :: 2.0
+ZOOM_EASE :: 12.0 // the share of the way there closed a second
+
+watch_zoom :: proc(match: ^Match, dt: f32, held: bool) {
+	w := &match.watch
+	me := &match.game.world.soldiers[match.me]
+	spectating := match.mode == .Demo || (me.active && me.team == .Spectator)
+	if !spectating {
+		w.zoom, w.zoom_to = 1, 1
+		return
+	}
+	if w.zoom <= 0 do w.zoom, w.zoom_to = 1, 1
+	if !held && !prompt_up(match) && !hud.menus_any_open(&match.hud.menus) && rl.IsWindowFocused() {
+		if notches := rl.GetMouseWheelMove(); notches != 0 {
+			w.zoom_to = clamp(w.zoom_to * math.pow(f32(ZOOM_STEP), notches), ZOOM_OUT, ZOOM_IN)
+		}
+	}
+	w.zoom += (w.zoom_to - w.zoom) * min(dt * ZOOM_EASE, 1)
+	match.camera.zoom = draw.camera_zoom(match.camera) * w.zoom
 }

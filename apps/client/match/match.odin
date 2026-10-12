@@ -236,6 +236,7 @@ match_pace :: proc(match: ^Match) -> f64 {
 match_update :: proc(match: ^Match, config: ^res.Client_Config, sounds: ^sound.Sound, ticks: int, alpha, dt: f32, held := false) -> Request {
 	match.request = nil
 	draw.camera_fit(&match.camera, draw.view_of(&config.graphics))
+	watch_zoom(match, dt, held) // spectating or a demo: the scroll's zoom over the view's
 	if match.mode != .Offline {
 		if !online.line_joined(match.line) do return Leave{} // the line is lost, or the demo over
 		if !take(match) do return Leave{} // a map that couldn't be loaded
