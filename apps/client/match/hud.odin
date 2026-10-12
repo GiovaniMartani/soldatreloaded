@@ -295,7 +295,7 @@ hud_round_ended :: proc(match: ^Match) {
 	hud.menus_show(&match.hud.menus, .Weapons, false)
 }
 
-// A new round: the last one's scoreboard and kills gone, and the weapons menu's
+// A new round: the last one's scoreboard, kills and stats gone, and the weapons menu's
 // comings and goings begun again, and its picks: no primary, as the original's SelWeapon
 // at a map change, and the secondary last picked kept; the team, asked once a join, not
 // asked again.
@@ -303,7 +303,7 @@ hud_new_round :: proc(match: ^Match) {
 	match.loadout.primary = .Punch
 	match.hud.scoreboard = false
 	match.hud.stats = false
-	hud.feed_kills_clear(&match.hud.feed) // a new map, or the same restarted
+	hud.feed_new_round(&match.hud.feed) // its kills and my stats: a new map, or the same restarted
 	match.limbo = {team_asked = match.limbo.team_asked}
 	match.team_asked = nil
 }

@@ -142,8 +142,8 @@ feed_tick :: proc(feed: ^Feed, game: ^sim.Game, names: ^[sim.MAX_PLAYERS]string,
 
 	for event in sa.slice(&game.output.events) {
 		#partial switch e in event {
-		case sim.Fired:
-			if e.soldier == me do feed.stats[e.weapon].shots += 1
+		case sim.Shot_Fired: // each bullet, as the original's CreateBullet counts them: a stab, a punch, each pellet
+			if e.shot.owner == me && !e.shot.harmless do feed.stats[stat_weapon(e.shot.weapon)].shots += 1
 		case sim.Flag_Drop:
 			flag := world.things[e.flag].kind
 			console_say(feed, flag_color(flag), "%s dropped the %s Flag", names[e.soldier], flag_name(flag))
@@ -156,7 +156,7 @@ feed_tick :: proc(feed: ^Feed, game: ^sim.Game, names: ^[sim.MAX_PLAYERS]string,
 	for ruling in sa.slice(&game.output.rulings) {
 		#partial switch r in ruling {
 		case sim.Damage:
-			if r.attacker == me && r.target != me do feed.stats[r.weapon].hits += 1
+			if r.attacker == me && r.target != me do feed.stats[stat_weapon(r.weapon)].hits += 1
 		case sim.Kill:
 			kill_said(feed, world, names, r, me)
 		case sim.Flag_Grab:
@@ -210,11 +210,20 @@ console_scroll_max :: proc(feed: ^Feed) -> int {
 	return max(sa.len(feed.scrollback) - BIG_CONSOLE_SHOWN, 0)
 }
 
-// The kill feed emptied: a new round's begun, a new map or the same one restarted, and
-// the last one's kills are no news of this one's.
-feed_kills_clear :: proc(feed: ^Feed) {
+// A new round's begun, a new map or the same one restarted: the kill feed emptied, the
+// last one's kills no news of this one's, and my weapon stats begun again, as the
+// original's ResetWeaponStats at a map change.
+feed_new_round :: proc(feed: ^Feed) {
 	sa.clear(&feed.kills)
 	feed.kill_scroll = 0
+	feed.stats = {}
+}
+
+// The weapon a shot, a hit or a kill is counted under in my stats: a thrown knife the
+// knife's, which threw it, as the original counts it.
+@(private = "file")
+stat_weapon :: proc(weapon: res.Weapon) -> res.Weapon {
+	return .Knife if weapon == .Thrown_Knife else weapon
 }
 
 // The clocks: the big message runs down, the feeds scroll when it is time, my readouts
@@ -258,7 +267,7 @@ kill_said :: proc(feed: ^Feed, world: ^sim.World, names: ^[sim.MAX_PLAYERS]strin
 	case kill.killer == me && kill.target == me:
 		big_say(feed, DIED_COLOR, KILL_MESSAGE_TICKS, "You killed yourself")
 	case kill.killer == me:
-		stat := &feed.stats[kill.weapon]
+		stat := &feed.stats[stat_weapon(kill.weapon)]
 		stat.kills += 1
 		if kill.part == HEAD_PART do stat.headshots += 1
 		if kill.distance > 0 {
