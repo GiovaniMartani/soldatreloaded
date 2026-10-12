@@ -87,6 +87,7 @@ Menu :: struct {
 	demos:        Demos,
 	mods:         Mods,
 	taunts:       Taunt_Editor,
+	custom_size:  Custom_Size, // the Graphics page's resolution typed
 	in_game:      bool, // over a game: its settings alone (IN_GAME_PAGES), and Back to game
 }
 
@@ -172,6 +173,8 @@ menu_destroy :: proc(menu: ^Menu) {
 	mods_destroy(&menu.mods)
 	delete(menu.servers.search)
 	delete(menu.taunts.text)
+	delete(menu.custom_size.text)
+	delete(menu.custom_size.problem)
 	if menu.previewed do draw.preview_destroy(&menu.preview)
 	hud.art_destroy(&menu.art)
 	menu^ = {}

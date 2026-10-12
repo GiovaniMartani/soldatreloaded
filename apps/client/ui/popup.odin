@@ -11,7 +11,7 @@ import "../../../core/utils"
 // it is open it has the keys and the click: on it a click chooses, off it one closes it,
 // so nothing under it takes either.
 
-POPUP_ITEMS :: 16
+POPUP_ITEMS :: 22 // as many as fit the view's 480 at POPUP_ROW each: the resolutions' longest list is 20
 
 Popup_Kind :: enum {
 	None,

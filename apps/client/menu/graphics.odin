@@ -55,15 +55,24 @@ page_graphics :: proc(menu: ^Menu) {
 	{
 		current := [2]i32{graphics.screen_width, graphics.screen_height}
 		sizes := resolutions(current, graphics.window_mode)
-		names := make([]string, len(sizes), context.temp_allocator)
+		names := make([]string, len(sizes) + 1, context.temp_allocator)
 		at := 0
 		for size, i in sizes {
 			names[i] = resolution_name(size)
 			if size == current do at = i
 		}
-		if picked := ui.select_box(k, "Resolution", names, nil, at); picked >= 0 {
-			graphics.screen_width, graphics.screen_height = sizes[picked].x, sizes[picked].y
+		names[len(sizes)] = "Custom..."
+		if picked := ui.select_box(k, "Resolution", names, nil, len(sizes) if menu.custom_size.open else at); picked >= 0 {
+			if picked < len(sizes) {
+				graphics.screen_width, graphics.screen_height = sizes[picked].x, sizes[picked].y
+				menu.custom_size.open = false
+			} else {
+				menu.custom_size.open = true
+				set_text(&menu.custom_size.text, fmt.tprintf("%d x %d", current.x, current.y))
+				set_text(&menu.custom_size.problem, "")
+			}
 		}
+		if menu.custom_size.open do custom_size_row(menu)
 	}
 	ui.toggle(k, "VSync", &graphics.vsync)
 	ui.toggle(k, "Limit frame rate", &graphics.fps_limit)
@@ -123,4 +132,78 @@ resolution_name :: proc(size: [2]i32) -> string {
 		if abs(aspect / shape.aspect - 1) < 0.02 do return fmt.tprintf("%d x %d (%s)", size.x, size.y, shape.name)
 	}
 	return fmt.tprintf("%d x %d", size.x, size.y)
+}
+
+// The Graphics page's resolution of the player's own: typed ("2560 x 1080"), and taken
+// as Enter or Apply is pressed, not as each key is, since the window follows it at once.
+Custom_Size :: struct {
+	open:    bool,
+	text:    string,
+	problem: string, // why what was typed wasn't taken; "" for nothing
+}
+
+CUSTOM_SIZE_LOWEST :: [2]i32{320, 240}
+CUSTOM_SIZE_HIGHEST :: [2]i32{7680, 4320}
+
+// The typed resolution's row, Apply beside it, and why it wasn't taken under it.
+@(private = "file")
+custom_size_row :: proc(menu: ^Menu) {
+	k := &menu.kit
+	c := &menu.custom_size
+	r := ui.row(k, ui.ROW_H, true)
+	if r.shown {
+		ui.row_label(k, r, "Width x height")
+		bw := ui.button_w(k, "Apply")
+		w := ui.ctrl_w(r) - bw - 6
+		if typed, changed := ui.field_box(k, r.id, r.focused, ui.ctrl_x(r), ui.ctrl_y(r), w, &c.text, c.text, 16, "2560 x 1080", false); changed {
+			set_text(&c.text, typed)
+		}
+		if ui.button_at(k, ui.ctrl_x(r) + w + 6, ui.ctrl_y(r), bw, ui.CTRL_H, "Apply", true, false) do custom_size_take(menu)
+	}
+	if ui.edit_entered(k, &c.text) do custom_size_take(menu)
+	if c.problem != "" {
+		p := ui.row(k, 18, false)
+		if p.shown do ui.text_fit(k, ui.TINY, c.problem, p.x + 10, p.y + p.h / 2, p.w - 20, ui.WARN)
+	}
+}
+
+// The typed resolution made the config's, if it is two numbers within reason.
+@(private = "file")
+custom_size_take :: proc(menu: ^Menu) {
+	c := &menu.custom_size
+	size, ok := size_parse(c.text)
+	lo, hi := CUSTOM_SIZE_LOWEST, CUSTOM_SIZE_HIGHEST
+	switch {
+	case !ok:
+		set_text(&c.problem, "Type a width and a height, as 2560 x 1080.")
+	case size.x < lo.x || size.y < lo.y || size.x > hi.x || size.y > hi.y:
+		set_text(&c.problem, fmt.tprintf("From %d x %d to %d x %d.", lo.x, lo.y, hi.x, hi.y))
+	case:
+		set_text(&c.problem, "")
+		menu.config.graphics.screen_width, menu.config.graphics.screen_height = size.x, size.y
+		c.open = false
+	}
+}
+
+// "2560 x 1080", "2560x1080", "2560 1080", "2560,1080": the two numbers in it.
+@(private = "file")
+size_parse :: proc(text: string) -> (size: [2]i32, ok: bool) {
+	numbers: [2]i32
+	n, digits := 0, false
+	for c in text {
+		switch c {
+		case '0' ..= '9':
+			if n >= 2 do return
+			numbers[n] = numbers[n] * 10 + i32(c - '0')
+			if numbers[n] > 100_000 do return
+			digits = true
+		case:
+			if digits {
+				n += 1
+				digits = false
+			}
+		}
+	}
+	if digits do n += 1
+	return numbers, n == 2
 }
