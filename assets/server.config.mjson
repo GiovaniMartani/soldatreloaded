@@ -23,6 +23,8 @@ server: {
   time_limit: 15
   // the captures that win a round
   capture_limit: 10
+  // seconds a soldier waits to be placed again after a death, 0 to 30; 0 at once
+  respawn_time: 3
   // the grenades a soldier carries at most, and is placed with, 0 to 5; 0 for none, and no grenade kits on the maps
   max_grenades: 2
   // the percentage of players whose yes passes a vote

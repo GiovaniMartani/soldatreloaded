@@ -72,6 +72,7 @@ Line :: struct {
 	hostname:    network.Name, // the server's, as the Map said
 	limit:       i32, // the captures that win, as the Map said
 	grenades:    i32, // the grenades a soldier carries at most, as the Map said
+	respawn:     i32, // the ticks a soldier waits to be placed again, as the Map said
 	map_dir:     string, // where the round's map was found: the data's, or the downloads'
 	mapped:      bool, // a Map not yet taken (line_take_map)
 	fetch:       Fetch, // the round's map, while it comes from the server
@@ -387,6 +388,7 @@ heard :: proc(n: ^Line, game: ^sim.Game, data: []u8) {
 		n.hostname = m.hostname
 		n.limit = i32(m.limit)
 		n.grenades = i32(m.grenades)
+		n.respawn = i32(m.respawn)
 		n.world_texts = {} // the new world has none of the old's
 		network.client_stream_reset(&n.stream, m.round)
 		// the world is made of the map here, or of the server's once it has come, and its

@@ -737,3 +737,49 @@ no_grenades :: proc(t: ^testing.T) {
 	testing.expect_value(t, other.game.settings.max_grenades, 2)
 	testing.expect(t, grenade_kits(other) > 0, "ctf_Ash has its grenade kits")
 }
+
+// A server of no respawn time: its Map says so, and a soldier killed is placed again at
+// once; three seconds, the game's own, for a config that doesn't say.
+@(test)
+respawn_at_once :: proc(t: ^testing.T) {
+	testing.expect(t, net.net_init())
+	defer net.net_shutdown()
+	sv := new(server.Server)
+	defer free(sv)
+	config := res.DEFAULT_SERVER_CONFIG
+	config.server.port = PORT
+	config.server.respawn_time = 0
+	if !testing.expect(t, server.server_init(sv, {config = &config, data_dir = game.DATA_DIR, first_map = "ctf_Ash"})) do return
+	defer server.server_destroy(sv)
+	testing.expect_value(t, sv.game.settings.respawn_time, 0)
+
+	c := new(Test_Client)
+	defer free(c)
+	testing.expect(t, client_open(c, "Runner"))
+	defer client_close(c)
+	mapped := pump_until(sv, {c}, proc(cs: []^Test_Client) -> bool { return cs[0].mapped })
+	if !testing.expect(t, mapped, "the client is told the map") do return
+	testing.expect_value(t, c.map_msg.respawn, 0)
+
+	slot, added := server.server_add_bot(sv, .Alpha)
+	if !testing.expect(t, added, "a bot") do return
+	soldier := &sv.game.world.soldiers[slot]
+	for _ in 0 ..< 10 * game.TICK_RATE {
+		server.server_pump(sv, server.TICK_SECONDS)
+		if !soldier.vitals.dead do break
+	}
+	if !testing.expect(t, !soldier.vitals.dead, "the bot is placed") do return
+	life := soldier.vitals.life
+	sv.suicides[slot] = false
+	ticks := 0
+	for ticks < game.TICK_RATE {
+		server.server_pump(sv, server.TICK_SECONDS)
+		ticks += 1
+		if soldier.vitals.life > life && !soldier.vitals.dead do break
+	}
+	testing.expectf(t, soldier.vitals.life > life && !soldier.vitals.dead, "placed again after %d ticks", ticks)
+	testing.expectf(t, ticks <= 3, "at once, not after %d ticks", ticks)
+
+	defaults := res.DEFAULT_SERVER_CONFIG
+	testing.expect_value(t, defaults.server.respawn_time, 3)
+}

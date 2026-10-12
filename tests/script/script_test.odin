@@ -226,9 +226,9 @@ pump_until :: proc(sv: ^server.Server, s: ^server.Script, flag: string, max: int
 hosted :: proc(t: ^testing.T) {
 	if !testing.expect(t, net.net_init(), "ENet starts") do return
 	defer net.net_shutdown()
-	config := res.Server_Config {
-		server = {hostname = "script test", port = PORT},
-	}
+	config := res.DEFAULT_SERVER_CONFIG
+	config.server.hostname = "script test"
+	config.server.port = PORT
 	sv := new(server.Server)
 	defer free(sv)
 	if !testing.expectf(t, server.server_init(sv, {config = &config, data_dir = game.DATA_DIR, first_map = "ctf_Ash"}), "a server on port %d for the script", PORT) do return

@@ -52,7 +52,7 @@ recorder_join :: proc(r: ^Recorder, n: ^online.Line) {
 		m := network.Msg_Weapons{weapons = weapons}
 		recorder_packet(r, network.build(buf[:], .Weapons, network.msg_weapons, &m))
 	}
-	m := network.Msg_Map{round = n.round, map_name = n.map_name, hostname = n.hostname, limit = u16(clamp(n.limit, 0, i32(max(u16)))), grenades = u8(clamp(n.grenades, 0, 255))}
+	m := network.Msg_Map{round = n.round, map_name = n.map_name, hostname = n.hostname, limit = u16(clamp(n.limit, 0, i32(max(u16)))), grenades = u8(clamp(n.grenades, 0, 255)), respawn = u16(clamp(n.respawn, 0, i32(max(u16))))}
 	recorder_packet(r, network.build(buf[:], .Map, network.msg_map, &m))
 	if n.vote.kind != .None {
 		vote := n.vote
