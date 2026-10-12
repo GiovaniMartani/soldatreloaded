@@ -297,8 +297,8 @@ hosted :: proc(t: ^testing.T) {
 	testing.expect(t, holds(s, fmt.tprintf("assert(server.set_spawn(0, %v, %v) and not server.set_spawn(9, 0, 0))", at.x, at.y)), "the script sets where the bot is placed")
 	testing.expect(t, holds(s, "assert(server.player(0).admin == false)"), "a bot isn't an admin")
 	if testing.expect(t, pump_until(sv, s, "(server.player(0).alive or nil)", 10 * game.TICK_RATE), "the bot is placed again") {
-		pos := sv.game.world.soldiers[0].body.pos
-		testing.expectf(t, abs(pos.x - at.x) < 5 && abs(pos.y - at.y) < 5, "where it was set, %v, not %v", at, pos)
+		placed := sv.game.world.soldiers[0].body.pos
+		testing.expectf(t, abs(placed.x - at.x) < 5 && abs(placed.y - at.y) < 5, "where it was set, %v, not %v", at, placed)
 	}
 	testing.expect(t, holds(s, "assert(server.set_spawn(0))") && sv.game.world.spawns_set[0] == nil, "and the place taken away")
 
