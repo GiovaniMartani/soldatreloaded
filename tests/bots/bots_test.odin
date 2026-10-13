@@ -187,3 +187,37 @@ a_bot_with_nobody_in_sight_walks_the_waypoints :: proc(t: ^testing.T) {
 	bots.bots_new_round(b)
 	testing.expect(t, br.current_waypoint == 0 && !br.go_thing, "a new round forgets the path")
 }
+
+// With aimbot_bots the bot's own fight leads its shots: a bot two hundred units from an
+// enemy standing still lands more of them than the original's guess does.
+@(test)
+a_bot_with_the_aimbot_hits_more :: proc(t: ^testing.T) {
+	profiles := res.bot_profiles_load(game.DATA_DIR)
+	defer delete(profiles)
+	admiral := find_profile(profiles, "Admiral")
+	if !testing.expect(t, admiral != nil, "Admiral among the profiles") do return
+
+	hits: [2]int
+	for aimbot, k in ([2]bool{false, true}) {
+		g := new(game.Game)
+		defer {game.game_destroy(g); free(g)}
+		if !testing.expect(t, scene(g, 200.0), "the scene loads") do return
+		b := new(bots.Bots)
+		defer free(b)
+		bots.bots_init(b, {difficulty = bots.DIFFICULTY_NORMAL, aimbot = aimbot, miss_chance = 20}, nil, nil)
+		bots.bots_attach(b, 1, admiral, 5)
+		settle(g)
+		for _ in 0 ..< 600 {
+			g.world.soldiers[0].vitals.health = game.DEFAULT_HEALTH // standing it out
+			commands: [game.MAX_PLAYERS]game.Command
+			commands[0] = {sequence = g.world.tick + 1, aim = g.world.soldiers[1].body.pos}
+			bots.bots_commands(b, g, &names, &commands)
+			game.game_tick(g, &commands)
+			for event in sa.slice(&g.output.events) {
+				if hit, is_hit := event.(game.Hit); is_hit && hit.shooter == 1 && hit.target == 0 do hits[k] += 1
+			}
+			bots.bots_hear(b, g)
+		}
+	}
+	testing.expectf(t, hits[1] > 0 && hits[1] > hits[0], "more hits with the aimbot: %d against %d", hits[1], hits[0])
+}

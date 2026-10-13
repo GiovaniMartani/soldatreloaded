@@ -151,7 +151,7 @@ match_start :: proc(match: ^Match, maps: []string, config: ^res.Client_Config, m
 	bots_seat(match, config.offline.bots)
 	match.mod = mod
 	match_open(match)
-	bots_join(match, config.offline.bots)
+	bots_join(match, config.offline)
 	if !round_start(match) {
 		match_end(match)
 		return false

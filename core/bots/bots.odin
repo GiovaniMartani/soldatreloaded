@@ -6,8 +6,9 @@ package bots
 // nearest enemy it can see from its head, and fights it by how far away it is along
 // each axis (SimpleDecision: closer than DIST_CLOSE it crouches and fires, at
 // DIST_VERY_FAR it jumps and fires now and then, a camper lies down...), aiming ahead
-// of the target with its accuracy as a spread; with nobody in sight it walks the map's
-// waypoints, taking from the one it is heading for the keys the mapper laid on it,
+// of the target with its accuracy as a spread (with aimbot_bots, led as the game will fly
+// the shot, at a part of the body, some thrown wide: aim.odin); with nobody in sight it
+// walks the map's waypoints, taking from the one it is heading for the keys the mapper laid on it,
 // picking the next of its connections at random, on its team's path, and the other
 // team's once it carries the flag; a flag, a kit it needs or a knife it sees
 // draws it off the path (GoToThing); a grenade near it is run from; stuck, it jumps,
@@ -25,7 +26,8 @@ package bots
 //
 // By file: profile.odin reads the bots' files; control.odin is one tick of a bot's
 // thinking (ControlBot), which fights through decision.odin (SimpleDecision), walks
-// through waypoints.odin, and is drawn off the path by things.odin.
+// through waypoints.odin, and is drawn off the path by things.odin; aim.odin leads its
+// shots with aimbot_bots.
 
 import sa "core:container/small_array"
 
@@ -38,8 +40,10 @@ import "../utils"
 DIFFICULTY_NORMAL :: 100
 
 Settings :: struct {
-	difficulty: i32,
-	chat:       bool, // bots_chat: whether they talk
+	difficulty:  i32,
+	chat:        bool, // bots_chat: whether they talk
+	aimbot:      bool, // aimbot_bots: their shots led as the game flies them (aim.odin), not the original's guess
+	miss_chance: i32,  // aimbot_miss_chance: with it, the percent of shots a bot of typical accuracy throws wide
 }
 
 // Something a bot says: `slot` is its soldier's.
@@ -74,6 +78,7 @@ Brain :: struct {
 	one_place_count:          i32,
 	fall_save:                bool, // falling fast: the jets break it
 	life_seen:                i32,  // the soldier's life last tick: a new one is a respawn
+	plan:                     Shot_Plan, // the next shot, where it is meant to go (aim.odin)
 }
 
 bots_init :: proc(b: ^Bots, settings: Settings, say: Say, say_user: rawptr) {

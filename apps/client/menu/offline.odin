@@ -65,6 +65,8 @@ page_offline :: proc(menu: ^Menu) {
 	ui.slider(k, "Bravo team", &settings.bots.bravo, 0, 15, 1, "%d")
 	ui.value_select(k, "Skill", &settings.bots.difficulty, SKILLS[:], SKILL_NAMES[:])
 	ui.toggle(k, "Bots chat", &settings.bots.chat)
+	ui.toggle(k, "Bots aimbot", &settings.aimbot_bots)
+	if settings.aimbot_bots do ui.slider(k, "Bots miss chance", &settings.aimbot_miss_chance, 0, 100, 5, "%d%%")
 	k.w = w
 
 	scrolling := k.scrolling

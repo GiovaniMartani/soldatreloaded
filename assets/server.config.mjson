@@ -27,6 +27,10 @@ server: {
   respawn_min_wave: 2
   // seconds a death waits at most, its wave and all; the waves come this minus respawn_min_wave apart
   respawn_max_wave: 4
+  // the bots lead every shot as the game will fly it, at the head, the chest or the legs; false for the original's aim, a guess spread by each bot's accuracy
+  aimbot_bots: false
+  // with aimbot_bots, the percent of shots a bot of typical accuracy throws wide on purpose; a sharper bot fewer, a sloppier more, by its profile and the difficulty; 0 none
+  aimbot_miss_chance: 5
   // the percentage of players whose yes passes a vote
   vote_percent: 60
   // the folder of Lua scripts the server runs: every .lua in it, in name order (docs/scripting.md); a .lua.disabled is passed over; none ship with the server, and examples are at https://github.com/soldatreloaded/soldatreloaded-scripts; empty for none

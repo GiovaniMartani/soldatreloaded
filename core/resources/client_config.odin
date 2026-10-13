@@ -204,12 +204,14 @@ Demo_Settings :: struct {
 // Offline Play: capture the flag against bots, on this machine and no other, with no
 // server. Its limits, its bots and its maps.
 Offline_Settings :: struct {
-	time_limit:    i32 `jsoncomment:"minutes a round lasts"`,
-	capture_limit: i32 `jsoncomment:"the captures that win a round"`,
-	respawn_time:  i32 `jsoncomment:"seconds a soldier waits at least to be placed again after a death; with more players than seconds, the dead come back together, in waves two seconds apart"`,
-	max_grenades:  i32 `jsoncomment:"the grenades a soldier carries at most, and is placed with"`,
-	bots:          Bot_Settings `jsoncomment:"the bots on each team, how well they play, whether they talk"`,
-	maps:          []string `jsoncomment:"the rotation, played in turn; none plays the last map again"`,
+	time_limit:         i32 `jsoncomment:"minutes a round lasts"`,
+	capture_limit:      i32 `jsoncomment:"the captures that win a round"`,
+	respawn_time:       i32 `jsoncomment:"seconds a soldier waits at least to be placed again after a death; with more players than seconds, the dead come back together, in waves two seconds apart"`,
+	max_grenades:       i32 `jsoncomment:"the grenades a soldier carries at most, and is placed with"`,
+	aimbot_bots:        bool `jsoncomment:"the bots lead every shot as the game will fly it, at the head, the chest or the legs; false for the original's aim, a guess spread by each bot's accuracy"`,
+	aimbot_miss_chance: i32 `jsoncomment:"with aimbot_bots, the percent of shots a bot of typical accuracy throws wide on purpose; a sharper bot fewer, a sloppier more, by its profile and the difficulty; 0 none"`,
+	bots:               Bot_Settings `jsoncomment:"the bots on each team, how well they play, whether they talk"`,
+	maps:               []string `jsoncomment:"the rotation, played in turn; none plays the last map again"`,
 }
 
 Radio_Settings :: struct {
@@ -287,7 +289,7 @@ DEFAULT_CLIENT_CONFIG := Client_Config {
 	},
 	sound = {volume = 50},
 	network = {server = "127.0.0.1:23073", lobby = LOBBY_URL, mods_index = MODS_INDEX_URL, smooth = 100},
-	offline = {time_limit = 15, capture_limit = 10, respawn_time = 2, max_grenades = 2, bots = {difficulty = 100, chat = true}},
+	offline = {time_limit = 15, capture_limit = 10, respawn_time = 2, max_grenades = 2, aimbot_miss_chance = 5, bots = {difficulty = 100, chat = true}},
 	radio = {
 		call_1 = {"Enemy flagger", {"up!", "middle!", "down!"}},
 		call_2 = {"Friendly flagger", {"up!", "middle!", "down!"}},

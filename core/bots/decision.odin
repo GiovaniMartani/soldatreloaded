@@ -153,6 +153,13 @@ simple_decision :: proc(b: ^Bots, br: ^Brain, g: ^game.Game, me: game.Soldier_Id
 			}
 		}
 	}
+
+	// with the aimbot, a gun whose shot flies: led as the game will fly it, at a part or
+	// wide (aim.odin); the aim then rides along with the bot (bots_commands), which this
+	// takes back
+	if b.settings.aimbot {
+		if aim, leading := aim_at_target(br, g, me, miss_chance(b.settings.miss_chance, br.accuracy)); leading do br.aim = aim - s.body.velocity
+	}
 }
 
 // How far apart two coordinates are, as the original's marks have it: the mark the

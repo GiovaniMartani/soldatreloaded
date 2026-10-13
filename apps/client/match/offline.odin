@@ -202,8 +202,8 @@ spawn :: proc(game: ^sim.Game, id: sim.Soldier_Id, team: res.Team, loadout: sim.
 // from; each round seats as many as the config asks for (round_start). What they say is
 // heard in the chat, as a player's is.
 @(private = "package")
-bots_join :: proc(match: ^Match, settings: res.Bot_Settings) {
-	ai.bots_init(&match.bots, {difficulty = settings.difficulty, chat = settings.chat}, bot_said, match)
+bots_join :: proc(match: ^Match, offline: res.Offline_Settings) {
+	ai.bots_init(&match.bots, {difficulty = offline.bots.difficulty, chat = offline.bots.chat, aimbot = offline.aimbot_bots, miss_chance = offline.aimbot_miss_chance}, bot_said, match)
 	match.profiles = res.bot_profiles_load(sim.DATA_DIR)
 }
 

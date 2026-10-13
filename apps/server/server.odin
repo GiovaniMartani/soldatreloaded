@@ -169,7 +169,7 @@ server_init :: proc(sv: ^Server, options: Options) -> bool {
 	net.net_answer_queries(&sv.link, answer_query, sv)
 	lists.lists_load(&sv.lists, config, options.config_path)
 
-	bots.bots_init(&sv.bots, {difficulty = config.bots.difficulty, chat = config.bots.chat}, bot_say, sv)
+	bots.bots_init(&sv.bots, {difficulty = config.bots.difficulty, chat = config.bots.chat, aimbot = config.server.aimbot_bots, miss_chance = config.server.aimbot_miss_chance}, bot_say, sv)
 	sv.profiles = res.bot_profiles_load(options.data_dir)
 	add_bots(sv)
 
