@@ -7,8 +7,9 @@ things happen (`server.on`), and calls the server back through the `server` tabl
 the scripts run side by side, each with its own handlers. Requests to the web go through
 `http`, with `json` for their bodies.
 
-The server ships no scripts, and runs without any, its `scripts/` empty or not there at
-all. The examples, and the community's scripts, are at
+The server ships one script, `score_log.lua` (the player score's data, written to
+`logs/gather_*.log` as the game once wrote it itself); drop it to run without it. The
+examples, and the community's scripts, are at
 [soldatreloaded-scripts](https://github.com/soldatreloaded/soldatreloaded-scripts), which
 says what each does: copy one into `scripts/` to run it, and change the settings at its
 top. A script of your own goes beside them as a `.lua`; one renamed to `.lua.disabled` is
@@ -50,7 +51,9 @@ one script, hand handlers in with `server.on`, and keep a script's own names `lo
 | `command` | `slot, text` | a player said `/text` and the server has no such command (`team`, `votemap`, `votekick`, `yes` and `no` are its own) | `true` answers it; else "Unknown command" |
 | `join` | `slot, name, player` | a player (or a bot) has joined, before it picks a team: `player` is its table, its `ip` and `hwid` among it | |
 | `leave` | `slot, name` | one has left; its slot is already empty | |
-| `kill` | `killer, victim, weapon` | a kill, with the weapon's name; `killer == victim` for a suicide | |
+| `kill` | `killer, victim, weapon, x, y, part, amount, frag` | a kill: `x, y` where the victim fell, `part` the hitbox of the killing blow (`0` a blast), `amount` its damage, `frag` whether it was a blast; `killer == victim` for a suicide | |
+| `damage` | `attacker, target, weapon, amount, part, x, y, health_before` | a wound ruled: `amount` the raw damage, `part` the hitbox (`0` a blast), `x, y` where the target stood, `health_before` its health before the wound — cap a killing blow at it | |
+| `flag` | `slot, what, side, x, y` | a flag played: `what` one of `"grab"`, `"throw"`, `"drop"`, `"return"`, `"timeout"`, `"capture"`; `side` `"alpha"` or `"bravo"`; `slot` `nil` for a timeout; `x, y` where the soldier was (a timeout's: where the flag lay) | |
 | `capture` | `slot, team` | the flag scored by `slot`, for `team` | |
 | `spawn` | `slot` | a soldier placed, or placed anew | |
 | `match_end` | `winner` | the round's limit reached, or `nextmap`: `winner` is `"alpha"`, `"bravo"` or `nil`; the scores then stand a few seconds | |

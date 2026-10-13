@@ -188,10 +188,12 @@ failing :: proc(t: ^testing.T) {
 
 @(private = "file")
 HOSTED :: `
-kills = 0; joins = {}; left = nil; ticks = 0; seconds = 0; ended = nil; started = nil; answered = nil; match = nil
+kills = 0; joins = {}; left = nil; ticks = 0; seconds = 0; ended = nil; started = nil; answered = nil; match = nil; dmg = {}; flags = {}
 function on_join(slot, name, player) joins[#joins + 1] = name; joined = player end
 function on_leave(slot, name) left = name end
-function on_kill(killer, victim, weapon) kills = kills + 1; last_weapon = weapon end
+function on_kill(killer, victim, weapon, x, y, part, amount, frag) kills = kills + 1; last_weapon = weapon; kill8 = {x = x, y = y, part = part, amount = amount, frag = frag} end
+function on_damage(attacker, target, weapon, amount, part, x, y, health_before) dmg[#dmg + 1] = {attacker, target, weapon, amount, part, x, y, health_before} end
+function on_flag(slot, what, side, x, y) flags[#flags + 1] = {s = slot, what = what, side = side, x = x, y = y} end
 function on_capture(slot, team) captured = {slot = slot, team = team} end
 function on_spawn(slot) spawned = slot end
 function on_tick(tick) ticks = ticks + 1 end
@@ -282,13 +284,31 @@ hosted :: proc(t: ^testing.T) {
 	testing.expect(t, holds(s, "assert(ticks >= 5, ticks)"), "on_tick runs with every tick")
 	pump(sv, s, game.TICK_RATE)
 	testing.expect(t, holds(s, "assert(seconds >= 1, seconds)"), "on_second once a second")
-	// the rulings of a tick, as the referee would leave them
-	sa.push_back(&sv.game.output.rulings, game.Ruling(game.Kill{killer = 0, target = 0, weapon = .AK74}))
-	sa.push_back(&sv.game.output.rulings, game.Ruling(game.Flag_Capture{soldier = 0}))
+	// the rulings of a tick, as the referee would leave them: a wound and its kill, the
+	// flag plays (a capture among them), a placing, and a flag a death let go of
+	alpha_flag, bravo_flag: game.Thing_Id
+	for &thing, i in sv.game.world.things {
+		if thing.kind == .Alpha_Flag do alpha_flag = game.Thing_Id(i)
+		if thing.kind == .Bravo_Flag do bravo_flag = game.Thing_Id(i)
+	}
+	sa.push_back(&sv.game.output.rulings, game.Ruling(game.Damage{attacker = 1, target = 0, weapon = .AK74, amount = 12.5, part = 3, pos = {10, 20}, health_before = 100}))
+	sa.push_back(&sv.game.output.rulings, game.Ruling(game.Kill{killer = 0, target = 0, weapon = .AK74, pos = {11, 21}, part = 3}))
+	sa.push_back(&sv.game.output.rulings, game.Ruling(game.Flag_Capture{soldier = 0, flag = alpha_flag}))
+	sa.push_back(&sv.game.output.rulings, game.Ruling(game.Flag_Throw{soldier = 0, flag = alpha_flag, pos = {5, 6}}))
+	sa.push_back(&sv.game.output.rulings, game.Ruling(game.Flag_Grab{soldier = 0, flag = bravo_flag, pos = {7, 8}}))
+	sa.push_back(&sv.game.output.rulings, game.Ruling(game.Flag_Return{flag = alpha_flag, returner = 1, pos = {9, 10}}))
+	sa.push_back(&sv.game.output.rulings, game.Ruling(game.Flag_Return{flag = bravo_flag, pos = {13, 14}}))
 	sa.push_back(&sv.game.output.rulings, game.Ruling(game.Respawn{target = 0}))
+	sa.push_back(&sv.game.output.events, game.Event(game.Flag_Drop{soldier = 0, flag = alpha_flag, pos = {3, 4}}))
 	sv.hooks.ticked(sv.hooks.user)
 	testing.expect(t, holds(s, fmt.tprintf("assert(kills == 1 and last_weapon == '%s', last_weapon)", sv.game.resources.weapons[.AK74].name)),
 		"on_kill heard the kill, with the weapon's name")
+	testing.expect(t, holds(s, "assert(kill8.x == 11 and kill8.y == 21 and kill8.part == 3 and kill8.amount == 12.5 and not kill8.frag)"),
+		"and the killing blow's place, hitbox and damage, and that it was not a blast")
+	testing.expect(t, holds(s, "assert(#dmg == 1 and dmg[1][1] == 1 and dmg[1][2] == 0 and dmg[1][3] == last_weapon and dmg[1][4] == 12.5 and dmg[1][5] == 3 and dmg[1][6] == 10 and dmg[1][7] == 20 and dmg[1][8] == 100)"),
+		"on_damage heard the wound, with its figures and the health before it")
+	testing.expect(t, holds(s, "assert(#flags == 6 and flags[1].what == 'capture' and flags[1].s == 0 and flags[1].side == 'alpha' and flags[2].what == 'throw' and flags[2].side == 'alpha' and flags[2].x == 5 and flags[2].y == 6 and flags[3].what == 'grab' and flags[3].side == 'bravo' and flags[4].what == 'return' and flags[4].s == 1 and flags[5].what == 'timeout' and flags[5].s == nil and flags[5].side == 'bravo' and flags[6].what == 'drop' and flags[6].x == 3 and flags[6].y == 4)"),
+		"on_flag heard the flag plays, in their order, with their sides and places")
 	testing.expect(t, holds(s, "assert(captured and captured.slot == 0 and captured.team == 'alpha' and spawned == 0)"),
 		"on_capture heard the flag scored, for its team, and on_spawn the placing")
 

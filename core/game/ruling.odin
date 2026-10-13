@@ -22,11 +22,13 @@ Ruling :: union {
 
 // A wound, as the rules have it: what comes off the health.
 Damage :: struct {
-	attacker: Soldier_Id,
-	target:   Soldier_Id,
-	weapon:   res.Weapon,
-	amount:   f32,
-	part:     u8, // where it struck: a corpse shot to pieces comes apart there
+	attacker:      Soldier_Id,
+	target:        Soldier_Id,
+	weapon:        res.Weapon,
+	amount:        f32,
+	part:          u8, // where it struck: a corpse shot to pieces comes apart there
+	pos:           utils.Vec2, // where the target stood
+	health_before: f32,        // the target's health before this wound
 }
 
 Kill :: struct {
@@ -72,11 +74,14 @@ Knife_Land :: struct {
 // The flag a soldier carries, thrown toward its aim.
 Flag_Throw :: struct {
 	soldier: Soldier_Id,
+	flag:    Thing_Id,   // the flag it carries, if the throw comes to be
+	pos:     utils.Vec2, // where the thrower stood
 }
 
 Flag_Grab :: struct {
 	soldier: Soldier_Id,
 	flag:    Thing_Id,
+	pos:     utils.Vec2, // where the grabber stood
 }
 
 // A flag sent home: by its own team, touched where it lay or carried home, or by nobody
@@ -84,6 +89,7 @@ Flag_Grab :: struct {
 Flag_Return :: struct {
 	flag:     Thing_Id,
 	returner: Maybe(Soldier_Id),
+	pos:      utils.Vec2, // where the toucher, the carrier or the flag lay
 }
 
 // The other team's flag brought to the carrier's own, at home: a capture, and the flag
@@ -91,6 +97,7 @@ Flag_Return :: struct {
 Flag_Capture :: struct {
 	soldier: Soldier_Id,
 	flag:    Thing_Id,
+	pos:     utils.Vec2, // where the carrier scored
 }
 
 // A kit or a gun taken: gone, or a map's kit up again elsewhere, at once; what it gives

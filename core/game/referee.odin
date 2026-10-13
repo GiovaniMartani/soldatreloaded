@@ -144,11 +144,13 @@ judge_hit :: proc(world: ^World, resources: ^Resources, hit: Hit, out: ^Tick_Out
 	if hit.amount <= 0 || !wounds(world, hit) do return
 	target := &world.soldiers[hit.target]
 	damage := Damage {
-		attacker = hit.shooter,
-		target   = hit.target,
-		weapon   = hit.weapon,
-		amount   = hit_damage(world, hit),
-		part     = hit.part,
+		attacker      = hit.shooter,
+		target        = hit.target,
+		weapon        = hit.weapon,
+		amount        = hit_damage(world, hit),
+		part          = hit.part,
+		pos           = hit.pos,
+		health_before = target.vitals.health,
 	}
 	rule(world, resources, damage, out)
 	if target.vitals.dead || target.vitals.health >= 1.0 do return

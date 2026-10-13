@@ -38,9 +38,9 @@ judge_flag_touch :: proc(world: ^World, resources: ^Resources, id: Thing_Id, tou
 	if thing.holder != nil || soldier.carrying.flag_grab_cooldown >= 1 do return
 
 	if own {
-		rule(world, resources, Flag_Return{flag = id, returner = toucher}, out)
+		rule(world, resources, Flag_Return{flag = id, returner = toucher, pos = soldier.body.pos}, out)
 	} else {
-		rule(world, resources, Flag_Grab{soldier = toucher, flag = id}, out)
+		rule(world, resources, Flag_Grab{soldier = toucher, flag = id, pos = soldier.body.pos}, out)
 	}
 }
 
@@ -50,7 +50,7 @@ judge_flag_home :: proc(world: ^World, resources: ^Resources, authority: ^Author
 	thing := &world.things[id]
 	holder, held := thing.holder.?
 	if !held || world.soldiers[holder].team != flag_team(thing.kind) do return false
-	rule(world, resources, Flag_Return{flag = id, returner = holder}, out)
+	rule(world, resources, Flag_Return{flag = id, returner = holder, pos = world.soldiers[holder].body.pos}, out)
 	return true
 }
 
@@ -58,7 +58,7 @@ judge_flag_home :: proc(world: ^World, resources: ^Resources, authority: ^Author
 judge_touchdown :: proc(world: ^World, resources: ^Resources, authority: ^Authority, id: Thing_Id, out: ^Tick_Output) {
 	if authority == nil do return
 	carrier, held := world.things[id].holder.?
-	if held && flag_touches_down(world, id) do rule(world, resources, Flag_Capture{soldier = carrier, flag = id}, out)
+	if held && flag_touches_down(world, id) do rule(world, resources, Flag_Capture{soldier = carrier, flag = id, pos = world.soldiers[carrier].body.pos}, out)
 }
 
 // A flag lain its time: held, it waits on; loose, it goes home.
@@ -68,7 +68,7 @@ judge_flag_timeout :: proc(world: ^World, resources: ^Resources, authority: ^Aut
 	if thing.holder != nil {
 		thing.timeout = FLAG_TIMEOUT
 	} else {
-		rule(world, resources, Flag_Return{flag = id}, out)
+		rule(world, resources, Flag_Return{flag = id, pos = thing.points[0]}, out)
 	}
 }
 

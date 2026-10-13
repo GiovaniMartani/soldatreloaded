@@ -101,7 +101,7 @@ combat_control :: proc(world: ^World, resources: ^Resources, id: Soldier_Id, out
 
 	// the flag thrown toward the aim, at the things' turn
 	if !rolling(body) && .Flag_Throw in buttons && soldier.carrying.held != nil {
-		things_ask(world, Flag_Throw{id})
+		things_ask(world, Flag_Throw{soldier = id})
 		emit(out, Flag_Thrown{id})
 	}
 	throw_grenade(world, resources, id, out)

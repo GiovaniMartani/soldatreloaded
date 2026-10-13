@@ -19,6 +19,8 @@ Event :: enum {
 	Join,
 	Leave,
 	Kill,
+	Damage,
+	Flag,
 	Capture,
 	Spawn,
 	Match_End,
@@ -31,7 +33,7 @@ Event :: enum {
 
 // The events by the names server.on takes, ended by nil for luaL_checkoption.
 @(private = "file")
-event_names := [len(Event) + 1]cstring{"chat", "command", "join", "leave", "kill", "capture", "spawn", "match_end", "round_end", "round_start", "tick", "second", "rcon", nil}
+event_names := [len(Event) + 1]cstring{"chat", "command", "join", "leave", "kill", "damage", "flag", "capture", "spawn", "match_end", "round_end", "round_start", "tick", "second", "rcon", nil}
 
 @(private = "file")
 global_names := [Event]cstring {
@@ -40,6 +42,8 @@ global_names := [Event]cstring {
 	.Join        = "on_join",
 	.Leave       = "on_leave",
 	.Kill        = "on_kill",
+	.Damage      = "on_damage",
+	.Flag        = "on_flag",
 	.Capture     = "on_capture",
 	.Spawn       = "on_spawn",
 	.Match_End   = "on_match_end",
@@ -214,21 +218,60 @@ hook_left :: proc(user: rawptr, slot: game.Soldier_Id, name: string) {
 	dispatch(s, .Leave, 2, false)
 }
 
-// The tick just run: its kills, captures and placings as the rulings have them, the
-// round's end once it has come, then the tick itself, and every second.
+// One flag event for a play of the flag: the soldier who did it (nil where nobody did),
+// what it was, the flag's side and where the soldier was (a timeout's: where the flag lay).
+@(private = "file")
+flag_event :: proc(s: ^Script, slot: Maybe(game.Soldier_Id), what: string, flag: game.Thing_Id, x, y: f32) {
+	if !listened(s, .Flag) do return
+	L := s.L
+	if slot != nil do lua.pushinteger(L, lua.Integer(slot.?))
+	else do lua.pushnil(L)
+	push_string(L, what)
+	push_string(L, team_name(game.flag_team(s.server.game.world.things[flag].kind)))
+	lua.pushnumber(L, lua.Number(x))
+	lua.pushnumber(L, lua.Number(y))
+	dispatch(s, .Flag, 5, false)
+}
+
+// The tick just run: its damage, kills, flag plays and placings as the rulings have
+// them, the round's end once it has come, then the tick itself, and every second.
 hook_ticked :: proc(user: rawptr) {
 	s := (^Script)(user)
 	g := s.server.game
 	L := s.L
+	last_damage: [game.MAX_PLAYERS]f32 // a kill's blow, paired from the wound ruled before it
 	for &ruling in sa.slice(&g.output.rulings) {
 		#partial switch r in ruling {
+		case game.Damage:
+			last_damage[r.target] = r.amount
+			if !listened(s, .Damage) do break
+			lua.pushinteger(L, lua.Integer(r.attacker))
+			lua.pushinteger(L, lua.Integer(r.target))
+			push_string(L, g.resources.weapons[r.weapon].name)
+			lua.pushnumber(L, lua.Number(r.amount))
+			lua.pushinteger(L, lua.Integer(r.part))
+			lua.pushnumber(L, lua.Number(r.pos.x))
+			lua.pushnumber(L, lua.Number(r.pos.y))
+			lua.pushnumber(L, lua.Number(r.health_before))
+			dispatch(s, .Damage, 8, false)
 		case game.Kill:
 			if !listened(s, .Kill) do break
 			lua.pushinteger(L, lua.Integer(r.killer))
 			lua.pushinteger(L, lua.Integer(r.target))
 			push_string(L, g.resources.weapons[r.weapon].name)
-			dispatch(s, .Kill, 3, false)
+			lua.pushnumber(L, lua.Number(r.pos.x))
+			lua.pushnumber(L, lua.Number(r.pos.y))
+			lua.pushinteger(L, lua.Integer(r.part))
+			lua.pushnumber(L, lua.Number(last_damage[r.target]))
+			lua.pushboolean(L, b32(r.part == 0))
+			dispatch(s, .Kill, 8, false)
+		case game.Flag_Throw:  flag_event(s, r.soldier, "throw", r.flag, r.pos.x, r.pos.y)
+		case game.Flag_Grab:   flag_event(s, r.soldier, "grab", r.flag, r.pos.x, r.pos.y)
+		case game.Flag_Return:
+			if r.returner != nil do flag_event(s, r.returner.?, "return", r.flag, r.pos.x, r.pos.y)
+			else do flag_event(s, nil, "timeout", r.flag, r.pos.x, r.pos.y)
 		case game.Flag_Capture:
+			flag_event(s, r.soldier, "capture", r.flag, r.pos.x, r.pos.y)
 			if !listened(s, .Capture) do break
 			lua.pushinteger(L, lua.Integer(r.soldier))
 			push_string(L, team_name(g.world.soldiers[r.soldier].team))
@@ -237,6 +280,13 @@ hook_ticked :: proc(user: rawptr) {
 			if !listened(s, .Spawn) do break
 			lua.pushinteger(L, lua.Integer(r.target))
 			dispatch(s, .Spawn, 1, false)
+		}
+	}
+	// a flag a death let go of is an event, not a ruling; walked after the rulings, so
+	// the kill that dropped it is heard before the drop
+	for &event in sa.slice(&g.output.events) {
+		#partial switch e in event {
+		case game.Flag_Drop: flag_event(s, e.soldier, "drop", e.flag, e.pos.x, e.pos.y)
 		}
 	}
 	// the match is over when the round ends, at a limit or asked for: heard once

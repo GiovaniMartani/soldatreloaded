@@ -135,7 +135,7 @@ wire_collect :: proc(q: ^Wire_Queue, out: ^game.Tick_Output, tick: u32, only_own
 		case game.Gun_Thrown:
 			if is_client && e.drop.owner == me do wire_push(q, e.drop, tick)
 		case game.Flag_Thrown:
-			if is_client && e.soldier == me do wire_push(q, game.Flag_Throw{e.soldier}, tick)
+			if is_client && e.soldier == me do wire_push(q, game.Flag_Throw{soldier = e.soldier}, tick)
 		case game.Shot_End:
 			if !is_client do wire_push(q, e, tick)
 		}

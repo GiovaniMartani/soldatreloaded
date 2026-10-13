@@ -60,7 +60,16 @@ things_take_requests :: proc(world: ^World, resources: ^Resources, authority: ^A
 		// a gun or a knife laid down, a flag thrown: the server's to make
 		case Gun_Drop:    if authority != nil do rule(world, resources, r, out)
 		case Knife_Land:  if authority != nil do rule(world, resources, r, out)
-		case Flag_Throw:  if authority != nil do rule(world, resources, r, out)
+		case Flag_Throw:
+			if authority != nil {
+				// the flag it carries, if the throw comes to be: a soldier asked the
+				// throw during its turn, and a return or a capture between then and here
+				// leaves it with none to throw
+				thrower := &world.soldiers[r.soldier]
+				held, ok := thrower.carrying.held.?
+				if !ok do break
+				rule(world, resources, Flag_Throw{soldier = r.soldier, flag = held, pos = thrower.body.pos}, out)
+			}
 		case Thing_Knock: thing_knock(&world.things[r.thing], r.point, r.velocity, r.push)
 		case Let_Go:      things_let_go(world, r.soldier, out)
 		case Placed:      things_on_respawn(world, resources, r.soldier)
