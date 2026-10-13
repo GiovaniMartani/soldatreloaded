@@ -201,6 +201,9 @@ settings_from :: proc(config: ^res.Server_Config, weapons: res.Weapon_Table) -> 
 	s := game.DEFAULT_GAME_SETTINGS
 	if config.server.time_limit > 0 do s.time_limit = config.server.time_limit * 60 * game.TICK_RATE
 	if config.server.capture_limit > 0 do s.capture_limit = config.server.capture_limit
+	// the waves: no minimum is a wait for the wave alone; a maximum under it, none at all
+	s.respawn_min_wave = max(config.server.respawn_min_wave, 0) * game.TICK_RATE
+	s.respawn_max_wave = max(config.server.respawn_max_wave * game.TICK_RATE, s.respawn_min_wave)
 	s.weapons = weapons
 	return s
 }

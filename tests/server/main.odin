@@ -344,11 +344,15 @@ bots_and_rounds :: proc(t: ^testing.T) {
 	config.server.port = PORT
 	config.server.time_limit = 1
 	config.server.capture_limit = 1
+	config.server.respawn_min_wave = 3
+	config.server.respawn_max_wave = 1 // under the minimum: no waves
 	config.bots.alpha = 2
 	config.bots.bravo = 1
 	config.maps = {"ctf_Ash", "ctf_Run"}
 	testing.expect(t, server.server_init(sv, {config = &config, data_dir = game.DATA_DIR, first_map = "ctf_Ash"}))
 	defer server.server_destroy(sv)
+	testing.expect_value(t, sv.game.settings.respawn_min_wave, 3 * game.TICK_RATE)
+	testing.expect_value(t, sv.game.settings.respawn_max_wave, 3 * game.TICK_RATE)
 
 	bots := 0
 	for &player in sv.players do bots += int(player.bot)

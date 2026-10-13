@@ -36,16 +36,18 @@ Server_Config :: struct {
 }
 
 Host_Settings :: struct {
-	hostname:       string `jsoncomment:"the game's name, on the scoreboard and in the server browser"`,
-	port:           u16 `jsoncomment:"the UDP port to listen on"`,
-	ip:             string `jsoncomment:"the address to listen on; empty for every one"`,
-	password:       string `jsoncomment:"the password to join; empty for none"`,
-	admin_password: string `jsoncomment:"the password a player says with /login to be an admin until they leave; empty for none"`,
-	rcon:           bool `jsoncomment:"remote admins: TCP on the game's port number, OpenSoldat's admin protocol (its tools, or telnet), the admin password first and then the admin commands; off without an admin password. The password goes in the clear: keep it to networks you trust"`,
-	time_limit:     i32 `jsoncomment:"minutes a round lasts"`,
-	capture_limit:  i32 `jsoncomment:"the captures that win a round"`,
-	vote_percent:   i32 `jsoncomment:"the percentage of players whose yes passes a vote"`,
-	scripts:        string `jsoncomment:"the folder of Lua scripts the server runs: every .lua in it, in name order (docs/scripting.md); a .lua.disabled is passed over; none ship with the server, and examples are at https://github.com/soldatreloaded/soldatreloaded-scripts; empty for none"`,
+	hostname:         string `jsoncomment:"the game's name, on the scoreboard and in the server browser"`,
+	port:             u16 `jsoncomment:"the UDP port to listen on"`,
+	ip:               string `jsoncomment:"the address to listen on; empty for every one"`,
+	password:         string `jsoncomment:"the password to join; empty for none"`,
+	admin_password:   string `jsoncomment:"the password a player says with /login to be an admin until they leave; empty for none"`,
+	rcon:             bool `jsoncomment:"remote admins: TCP on the game's port number, OpenSoldat's admin protocol (its tools, or telnet), the admin password first and then the admin commands; off without an admin password. The password goes in the clear: keep it to networks you trust"`,
+	time_limit:       i32 `jsoncomment:"minutes a round lasts"`,
+	capture_limit:    i32 `jsoncomment:"the captures that win a round"`,
+	respawn_min_wave: i32 `jsoncomment:"seconds every death waits at least; with more players than this, the dead come back together, in waves"`,
+	respawn_max_wave: i32 `jsoncomment:"seconds a death waits at most, its wave and all; the waves come this minus respawn_min_wave apart"`,
+	vote_percent:     i32 `jsoncomment:"the percentage of players whose yes passes a vote"`,
+	scripts:          string `jsoncomment:"the folder of Lua scripts the server runs: every .lua in it, in name order (docs/scripting.md); a .lua.disabled is passed over; none ship with the server, and examples are at https://github.com/soldatreloaded/soldatreloaded-scripts; empty for none"`,
 }
 
 Bot_Settings :: struct {
@@ -93,13 +95,15 @@ Mute_Entry :: struct {
 @(rodata)
 DEFAULT_SERVER_CONFIG := Server_Config {
 	server = {
-		hostname      = "Soldat Reloaded server",
-		port          = 23073,
-		time_limit    = 15,
-		capture_limit = 10,
-		vote_percent  = 60,
-		rcon          = true,
-		scripts       = "scripts",
+		hostname         = "Soldat Reloaded server",
+		port             = 23073,
+		time_limit       = 15,
+		capture_limit    = 10,
+		respawn_min_wave = 2,
+		respawn_max_wave = 4,
+		vote_percent     = 60,
+		rcon             = true,
+		scripts          = "scripts",
 	},
 	bots = {difficulty = 100, chat = true},
 	network = {flooding_packets = 120, flood_warnings = 4},

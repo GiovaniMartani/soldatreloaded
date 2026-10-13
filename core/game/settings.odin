@@ -9,7 +9,7 @@ import res "../resources"
 Game_Settings :: struct {
 	time_limit:       i32,  // ticks
 	capture_limit:    i32,  // captures that win a round
-	respawn_time:     i32,  // ticks: what a dropped gun's and a loose flag's time is reckoned from
+	respawn_time:     i32,  // ticks: sv_respawntime, which only a medikit's timeout is reckoned from, and it never runs out
 	respawn_min_wave: i32,  // ticks every death waits, besides its wave (sv_respawntime_minwave)
 	respawn_max_wave: i32,  // ticks a death waits at most, its wave and all (sv_respawntime_maxwave)
 	max_grenades:     i32,

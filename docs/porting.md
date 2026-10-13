@@ -214,7 +214,9 @@ sprites, and is set again from the player count when it runs out
 (`UpdateWaveRespawnTime`, its quirk kept: past the minimum wave the maximum outright,
 recounted every tick where OpenSoldat recounts at `SortPlayers`). A death waits its wave
 and the minimum (`Kill.respawn`, so a client's countdown is the server's).
-`sv_respawntime` goes on timing the guns and flags only, as OpenSoldat's does in CTF.
+`respawn_time` (`sv_respawntime`) now sets only a medikit's timeout, which never runs out,
+as OpenSoldat's does in its team games. The waves
+are the server config's (`respawn_min_wave`, `respawn_max_wave`, in seconds).
 `tests/compare`'s `kill_respawn` keeps the C game's flat count, so it parts at the
 respawn counter.
 

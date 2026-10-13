@@ -23,6 +23,10 @@ server: {
   time_limit: 15
   // the captures that win a round
   capture_limit: 10
+  // seconds every death waits at least; with more players than this, the dead come back together, in waves
+  respawn_min_wave: 2
+  // seconds a death waits at most, its wave and all; the waves come this minus respawn_min_wave apart
+  respawn_max_wave: 4
   // the percentage of players whose yes passes a vote
   vote_percent: 60
   // the folder of Lua scripts the server runs: every .lua in it, in name order (docs/scripting.md); a .lua.disabled is passed over; none ship with the server, and examples are at https://github.com/soldatreloaded/soldatreloaded-scripts; empty for none
