@@ -392,7 +392,7 @@ soldier_kill :: proc(world: ^World, resources: ^Resources, kill: Kill) {
 	soldier.arsenal.primary = weapon_state(resources, .Punch)
 	vitals.dead = true
 	soldier.body.velocity = {}
-	vitals.respawn_counter = world.rules.respawn_time
+	vitals.respawn_counter = kill.respawn
 
 	soldier.tally.deaths += 1
 	if kill.killer != kill.target {

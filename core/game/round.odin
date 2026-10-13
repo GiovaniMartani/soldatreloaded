@@ -125,6 +125,8 @@ round_rules :: proc(round: ^Round, settings: ^Game_Settings) -> Rules {
 		kits_collide     = settings.kits_collide,
 		guns_collide     = settings.guns_collide,
 		respawn_time     = settings.respawn_time,
+		respawn_min_wave = settings.respawn_min_wave,
+		respawn_max_wave = settings.respawn_max_wave,
 		max_grenades     = settings.max_grenades,
 		medikit_cooldown = settings.medikit_cooldown * TICK_RATE,
 	}

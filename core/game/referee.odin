@@ -42,8 +42,13 @@ judge :: proc(world: ^World, resources: ^Resources, authority: ^Authority, out: 
 }
 
 // The server's tick on every soldier, whoever moves it: the dead respawned when their
-// time is up, and those off the map at once; spawn protection running out.
+// time is up, and those off the map at once; spawn protection running out. Then the
+// waves' clock, after the tick's deaths, as in OpenSoldat's frame.
 judge_lives :: proc(world: ^World, resources: ^Resources, out: ^Tick_Output) {
+	defer {
+		world.wave -= 1
+		if world.wave < 1 do world.wave = wave_time(world)
+	}
 	for &soldier, i in world.soldiers {
 		if !soldier.active || soldier.team == .Spectator do continue // neither alive nor to be respawned
 		id := Soldier_Id(i)
@@ -67,6 +72,19 @@ judge_lives :: proc(world: ^World, resources: ^Resources, out: ^Tick_Output) {
 
 		if vitals.cease_fire > -1 do vitals.cease_fire -= 1
 	}
+}
+
+// How often the dead come back together (UpdateWaveRespawnTime): a second a player,
+// spectators and bots too; past the minimum wave, the maximum outright, as OpenSoldat
+// has it. Less the minimum, which every death waits besides; a tick at least, so at the
+// defaults, with one or two players, each death waits the minimum alone.
+@(private = "file")
+wave_time :: proc(world: ^World) -> i32 {
+	players: i32
+	for soldier in world.soldiers do if soldier.active do players += 1
+	time := players * TICK_RATE
+	if time > world.rules.respawn_min_wave do time = world.rules.respawn_max_wave
+	return max(time - world.rules.respawn_min_wave, 1)
 }
 
 // A new life on one of the team's spawn points, with the guns chosen.
@@ -170,5 +188,6 @@ judge_hit :: proc(world: ^World, resources: ^Resources, hit: Hit, out: ^Tick_Out
 		distance  = hit.distance,
 		airtime   = hit.airtime,
 		ricochets = hit.ricochets,
+		respawn   = world.wave + world.rules.respawn_min_wave,
 	}, out)
 }

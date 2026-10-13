@@ -40,6 +40,7 @@ World :: struct {
 	gravity:      f32,
 	rng:          Rng,
 	rules:        Rules,
+	wave:         i32, // ticks until the dead's next wave; the server's (judge_lives)
 	soldiers:     [MAX_PLAYERS]Soldier,
 	corpses:      [MAX_PLAYERS]Corpse, // by the soldier's id
 	bullets:      [MAX_BULLETS]Bullet,
@@ -65,6 +66,8 @@ Rules :: struct {
 	kits_collide:     bool, // bullets and blasts knock kits about; flags always
 	guns_collide:     bool, // and dropped guns
 	respawn_time:     i32,  // ticks
+	respawn_min_wave: i32,  // ticks
+	respawn_max_wave: i32,  // ticks
 	max_grenades:     i32,
 	medikit_cooldown: i32,  // ticks
 }

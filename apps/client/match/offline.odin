@@ -69,6 +69,10 @@ settings_from :: proc(offline: res.Offline_Settings) -> sim.Game_Settings {
 	if offline.time_limit > 0 do s.time_limit = offline.time_limit * 60 * sim.TICK_RATE
 	if offline.capture_limit > 0 do s.capture_limit = offline.capture_limit
 	s.respawn_time = clamp(offline.respawn_time, 1, 30) * sim.TICK_RATE
+	// the slider's wait is the shortest; a wave adds up to what it adds on a server
+	wave := sim.DEFAULT_GAME_SETTINGS.respawn_max_wave - sim.DEFAULT_GAME_SETTINGS.respawn_min_wave
+	s.respawn_min_wave = s.respawn_time
+	s.respawn_max_wave = s.respawn_time + wave
 	s.max_grenades = clamp(offline.max_grenades, 0, 5)
 	return s
 }

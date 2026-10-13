@@ -204,9 +204,19 @@ first step one tick before OpenSoldat's would (the port counts down in the tick 
 death too, and the body is live for the whole next tick; OpenSoldat respawns in the dead
 branch and first moves the tick after). In OpenSoldat the respawned body is in the tick's
 bullet and things passes at once; in the port the next tick's. The cease fire counts down
-after the step, so a flag's grab and the parachute's release gate one tick longer. CTF in
-OpenSoldat respawns in waves (`WaveRespawnCounter + sv_respawntime_minwave`), which the
-port does not have, so the respawn tick differs by design before any of this. Port = C.
+after the step, so a flag's grab and the parachute's release gate one tick longer. Port = C.
+
+**Wave respawn**, OpenSoldat's in its team games (`WaveRespawnCounter +
+sv_respawntime_minwave`), was not in the C game; the port has it since (October 2026), so
+here it parts from its oracle. The server's wave clock (`World.wave`) counts down in
+`judge_lives` after the soldiers, as `ServerLoop.UpdateFrame` counts it after the
+sprites, and is set again from the player count when it runs out
+(`UpdateWaveRespawnTime`, its quirk kept: past the minimum wave the maximum outright,
+recounted every tick where OpenSoldat recounts at `SortPlayers`). A death waits its wave
+and the minimum (`Kill.respawn`, so a client's countdown is the server's).
+`sv_respawntime` goes on timing the guns and flags only, as OpenSoldat's does in CTF.
+`tests/compare`'s `kill_respawn` keeps the C game's flat count, so it parts at the
+respawn counter.
 
 **Network.** A client's snapshot lands on the sprite before the tick in OpenSoldat
 (`UDP.ProcessLoop` before the owed ticks); the port's `heard_apply` slots do the same, a
@@ -219,8 +229,7 @@ pass reads the score, and both freeze from the next tick. Unobservable. The hist
 lag compensation is recorded after the step and read in the bullet pass, as
 `OldSpritePos` is. Matches.
 
-**Not in the port, by design**, each sim-affecting where it applies: wave respawn, the
-bonus kits and their spawn roll (which also draws from the random stream), bullet time,
+**Not in the port, by design**, each sim-affecting where it applies: the bonus kits and their spawn roll (which also draws from the random stream), bullet time,
 the flag count repair every two seconds, the global medikit cooldown (the port's is per
 soldier, `kit.odin`). The client frame orders the entities as the server's does, with the
 sparks between the bullets and the things; the port's client steps the same `world_step`
@@ -228,7 +237,7 @@ without authority.
 
 **Where that leaves it.** Every difference found was one the C game had too, so the port
 stayed faithful to its oracle, and the four fixed were fixed in both. What remains differs
-by design or is unobservable; the respawn tick is moot until wave respawn is decided.
+by design or is unobservable, or follows OpenSoldat over it, as wave respawn does.
 
 ## The controls against OpenSoldat's ControlSprite
 

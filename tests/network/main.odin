@@ -147,6 +147,50 @@ run :: proc(g: ^game.Game, ticks: int, buttons: game.Buttons) {
 	}
 }
 
+// The dead come back in waves, as in OpenSoldat's team games: with three players, two
+// seconds apart, each death waiting two seconds besides, so two dying in one wave come
+// back together; with two players, two seconds and a tick, every death alike.
+@(test)
+wave_respawn :: proc(t: ^testing.T) {
+	g := make_game(authority = true)
+	defer {game.game_destroy(g); free(g)}
+	place(g, 0, .Alpha)
+	place(g, 1, .Bravo)
+	place(g, 2, .Alpha)
+	for g.world.wave != 100 do run(g, 1, {})
+	testing.expect_value(t, kill(g, 0), 100 + 120)
+	run(g, 30, {})
+	testing.expect_value(t, kill(g, 1), 69 + 120)
+	ticks := 0
+	for g.world.soldiers[0].vitals.dead && ticks < 300 {
+		testing.expect(t, g.world.soldiers[1].vitals.dead, "the second death is not back before the first")
+		run(g, 1, {})
+		ticks += 1
+	}
+	testing.expect(t, !g.world.soldiers[0].vitals.dead && !g.world.soldiers[1].vitals.dead, "both are back, in the same tick")
+
+	// two players: no waves, once the wave running has run out
+	g.world.soldiers[2].active = false
+	wave := g.world.wave
+	testing.expect_value(t, kill(g, 0), wave + 120)
+	for g.world.wave != 1 do run(g, 1, {})
+	run(g, 300, {})
+	testing.expect_value(t, kill(g, 0), 1 + 120)
+	run(g, 17, {})
+	testing.expect_value(t, kill(g, 1), 1 + 120)
+}
+
+// Kills a soldier, by its own hand, and tells how long the ruling has it wait.
+@(private = "file")
+kill :: proc(g: ^game.Game, id: game.Soldier_Id) -> i32 {
+	game.world_ask_kill(&g.world, id, false)
+	run(g, 1, {})
+	for ruling in sa.slice(&g.output.rulings) {
+		if k, is_kill := ruling.(game.Kill); is_kill && k.target == id do return k.respawn
+	}
+	return -1
+}
+
 @(test)
 soldier_halves :: proc(t: ^testing.T) {
 	g := make_game(true)
@@ -198,7 +242,7 @@ words :: proc(t: ^testing.T) {
 		game.Shot_End{owner = 2, shot = 12, weapon = .Frag_Grenade, pos = {5, 6}, blast = .Frag},
 		game.Shot_End{owner = 2, shot = 13, weapon = .Thrown_Knife, pos = {5, 6}, blast = nil, target = 4},
 		game.Ruling(game.Damage{attacker = 1, target = 2, weapon = .AK74, amount = 12.5, part = 3}),
-		game.Ruling(game.Kill{killer = 1, target = 2, weapon = .Knife, pos = {7, 8}, part = 2, impact = {1, 1}, fire = 3, distance = 99, airtime = 30, ricochets = 1}),
+		game.Ruling(game.Kill{killer = 1, target = 2, weapon = .Knife, pos = {7, 8}, part = 2, impact = {1, 1}, fire = 3, distance = 99, airtime = 30, ricochets = 1, respawn = 150}),
 		game.Ruling(game.Respawn{target = 4, life = 2, team = .Bravo, primary = .Spas12, secondary = .LAW, pos = {100, 200}}),
 		game.Ruling(game.Gun_Drop{owner = 1, weapon = .Minigun, ammo = 50, pos = {1, 1}}),
 		game.Ruling(game.Knife_Land{owner = 5, pos = {2, 2}}),

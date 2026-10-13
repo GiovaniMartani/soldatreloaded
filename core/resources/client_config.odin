@@ -206,7 +206,7 @@ Demo_Settings :: struct {
 Offline_Settings :: struct {
 	time_limit:    i32 `jsoncomment:"minutes a round lasts"`,
 	capture_limit: i32 `jsoncomment:"the captures that win a round"`,
-	respawn_time:  i32 `jsoncomment:"seconds a soldier waits to be placed again after a death"`,
+	respawn_time:  i32 `jsoncomment:"seconds a soldier waits at least to be placed again after a death; with more players than seconds, the dead come back together, in waves two seconds apart"`,
 	max_grenades:  i32 `jsoncomment:"the grenades a soldier carries at most, and is placed with"`,
 	bots:          Bot_Settings `jsoncomment:"the bots on each team, how well they play, whether they talk"`,
 	maps:          []string `jsoncomment:"the rotation, played in turn; none plays the last map again"`,
@@ -287,7 +287,7 @@ DEFAULT_CLIENT_CONFIG := Client_Config {
 	},
 	sound = {volume = 50},
 	network = {server = "127.0.0.1:23073", lobby = LOBBY_URL, mods_index = MODS_INDEX_URL, smooth = 100},
-	offline = {time_limit = 15, capture_limit = 10, respawn_time = 3, max_grenades = 2, bots = {difficulty = 100, chat = true}},
+	offline = {time_limit = 15, capture_limit = 10, respawn_time = 2, max_grenades = 2, bots = {difficulty = 100, chat = true}},
 	radio = {
 		call_1 = {"Enemy flagger", {"up!", "middle!", "down!"}},
 		call_2 = {"Friendly flagger", {"up!", "middle!", "down!"}},
