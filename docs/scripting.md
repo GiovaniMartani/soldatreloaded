@@ -8,9 +8,9 @@ the scripts run side by side, each with its own handlers. Requests to the web go
 `http`, with `json` for their bodies, and what a script keeps from one start to the next
 goes in a database, `db`.
 
-The server ships one script, `score_log.lua` (the player score's data, written to
-`logs/gather_*.log` as the game once wrote it itself); drop it to run without it. The
-examples, and the community's scripts, are at
+The server ships no scripts, and runs without any. The repository's `scripts/` holds one,
+off: `score_log.lua.disabled`, the player score's data written to `logs/gather_*.log` as
+the game once wrote it itself; rename it to `score_log.lua` to run it. The examples, and the community's scripts, are at
 [soldatreloaded-scripts](https://github.com/soldatreloaded/soldatreloaded-scripts), which
 says what each does: copy one into `scripts/` to run it, and change the settings at its
 top. A script of your own goes beside them as a `.lua`; one renamed to `.lua.disabled` is
