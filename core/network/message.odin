@@ -10,7 +10,7 @@ import "../utils"
 // sent over and over, unreliably, a lost one replaced by the next; news goes once, in
 // order. The two streams' messages are stream.odin's.
 
-VERSION :: 12 // of the wire: a client of another can't join
+VERSION :: 13 // of the wire: a client of another can't join
 DEFAULT_PORT :: 23073
 
 Name :: utils.Short_String(24)     // a player's
@@ -21,6 +21,7 @@ Map_Name :: utils.Short_String(64)
 Reason :: utils.Short_String(26)   // a kick vote's (the original's REASON_CHARS)
 MAP_HASH_SIZE :: 32                // a map's .pms, SHA-256
 Map_Art_Path :: utils.Short_String(96) // a map's art file, from the map's own folder: "scenery-gfx/tree.png"
+Shown_Text :: utils.Short_String(64) // a text a script shows in the world or on the screen
 
 Msg_Kind :: enum u8 {
 	Invalid,
@@ -39,6 +40,7 @@ Msg_Kind :: enum u8 {
 	Map_Fetch,    // client -> server: parts of the round's map, which it lacks
 	Map_Part,     // server -> client: a part of it
 	Map_Art,      // server -> client: one of the round's map's own art files, after its Map
+	Text,         // server -> client: a script's text shown in the world or on the screen, or taken away
 }
 
 // Every kind but the two streams, which are state sent anew every tick; so a kind added
@@ -143,6 +145,8 @@ Msg_Map :: struct {
 	map_name: Map_Name,
 	hostname: Name,              // the server's, for the scoreboard
 	limit:    u16,               // the captures that win the round, for the HUD
+	grenades: u8,                // the grenades a soldier carries at most: none, and no grenade kits, for 0
+	guns_off: res.Weapon_Set,    // the guns the server gives nobody, for the weapons menu
 	hash:     [MAP_HASH_SIZE]u8, // the map's .pms, SHA-256: a copy with another isn't this map; zeros for any
 	art:      u8,                // its own art files, a Map_Art each to follow
 }
@@ -152,6 +156,10 @@ msg_map :: proc(b: ^Buffer, m: ^Msg_Map) {
 	net_string(b, &m.map_name)
 	net_string(b, &m.hostname)
 	net_u16(b, &m.limit)
+	net_u8(b, &m.grenades)
+	off := transmute(u32)m.guns_off
+	net_u32(b, &off)
+	m.guns_off = transmute(res.Weapon_Set)off
 	for &byte in m.hash do net_u8(b, &byte)
 	net_u8(b, &m.art)
 }
@@ -287,6 +295,45 @@ Msg_Weapons :: struct {
 
 msg_weapons :: proc(b: ^Buffer, m: ^Msg_Weapons) {
 	fields_serialize(b, WEAPONS_FIELDS, m, nil)
+}
+
+// A text a server script shows, as OpenSoldat's WorldText and BigText: at a place in the
+// world, or on the screen (at a place in the 640 by 480 view the HUD is laid out in,
+// stretched across a wide one), its middle there. Each place has its layers, which a
+// client keeps: a layer said again is replaced, and an empty text (with no clock) takes it
+// away. It stays `seconds`, or with 0 until it is replaced or the round ends; a new Map
+// takes every layer away. `scale` is of the big messages' lettering. With a clock, the
+// text is followed by the time from the world's tick `clock_from` on, which the client
+// counts itself: a timer that runs smoothly with no word from the server.
+TEXT_LAYERS :: 256
+
+Text_Place :: enum u8 {
+	World,
+	Screen,
+}
+
+Msg_Text :: struct {
+	place:      Text_Place,
+	layer:      u8,
+	text:       Shown_Text,
+	pos:        utils.Vec2,
+	color:      utils.Rgba,
+	scale:      f32,
+	seconds:    u16,
+	clock:      bool,
+	clock_from: u32,
+}
+
+msg_text :: proc(b: ^Buffer, m: ^Msg_Text) {
+	net_enum(b, &m.place)
+	net_u8(b, &m.layer)
+	net_string(b, &m.text)
+	net_vec2(b, &m.pos)
+	for &channel in m.color do net_u8(b, &channel)
+	net_f32(b, &m.scale)
+	net_u16(b, &m.seconds)
+	net_bool(b, &m.clock)
+	if m.clock do net_u32(b, &m.clock_from)
 }
 
 // ---------------------------------------------------------------------------------

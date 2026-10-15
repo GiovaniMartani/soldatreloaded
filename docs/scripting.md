@@ -5,7 +5,8 @@ names in server.config.mjson (`scripts/` by default), read once as the server st
 order of their names, into one state. Each hands the server functions to call when
 things happen (`server.on`), and calls the server back through the `server` table, so
 the scripts run side by side, each with its own handlers. Requests to the web go through
-`http`, with `json` for their bodies.
+`http`, with `json` for their bodies, and what a script keeps from one start to the next
+goes in a database, `db`.
 
 The server ships one script, `score_log.lua` (the player score's data, written to
 `logs/gather_*.log` as the game once wrote it itself); drop it to run without it. The
@@ -69,7 +70,8 @@ in seconds, `scores` (`{alpha = n, bravo = n}`), `winner` (`"alpha"` or `"bravo"
 
 A player table has `slot`, `name`, `team` (`"none"`, `"alpha"`, `"bravo"`,
 `"charlie"`, `"delta"` or `"spectator"`), `kills`, `deaths`, `flags`, `ping`, `health`,
-and `bot`, `alive` and `spectator` as booleans; and a person's `ip` (`"1.2.3.4"`) and
+`x` and `y` (where it is, in the map's units, as `server.spawns()` gives them), and `bot`,
+`alive`, `spectator` and `admin` (may run the admin commands) as booleans; and a person's `ip` (`"1.2.3.4"`) and
 `hwid` (its machine's hardware ID, eleven hex digits), as the bans know them: a bot has
 neither, and a client that sent no hardware ID has no `hwid`. Slots count from 0 and are
 what the players are known by on the wire; a slot is reused once its player has left.
@@ -80,6 +82,9 @@ what the players are known by on the wire; a slot is reused once its player has 
 |---|---|
 | `server.say(text [, color])` | a line to everyone, in the script colour, or `color`: `"RRGGBB"` or `{r, g, b}` |
 | `server.say_to(slot, text [, color])` | the same to one player |
+| `server.world_text(layer, text [, x, y [, options]])` | `text` shown to everyone with its middle at (`x`, `y`) in the map, on `layer` (0 to 255), replacing what that layer showed; `""` takes the layer away. `options`: `color` (`"RRGGBB"` or `{r, g, b}`, white if none), `scale` (of the big messages' lettering, 1 if none; it zooms with the view), `seconds` (how long it stays; none, or 0, until replaced) and `clock` (a tick, as `server.tick()` gives: the text is followed by the time from that tick on, as `12.345` or `1:02.345`, which each player's game counts itself; `""` with a clock is the time alone). It is kept for whoever joins, and a new round takes it away, as it does every layer |
+| `server.world_text_to(slot, layer, text [, x, y [, options]])` | the same to one player alone, over what everyone has on that layer, and not kept: a player who joins later has none |
+| `server.screen_text(layer, text [, x, y [, options]])`, `server.screen_text_to(slot, ...)` | the same on the screen, as OpenSoldat's `BigText`: its middle at (`x`, `y`) in the 640 by 480 view the HUD is laid out in (stretched across a wide screen), on 256 layers of the screen's own; a timer is `server.screen_text_to(slot, 0, "", 320, 400, {clock = server.tick()})` |
 | `server.print(text)` | a line on the server's console only |
 | `server.command(text)` | a console command, as if typed: `"say hello"`, `"addbot1"`, `"nextmap"`, `"banip 1.2.3.4 60"`. Only the console's own commands (`apps/server/console.odin`): the settings are server.config.mjson's, and none is changed from here |
 | `server.pause()`, `server.unpause()` | the game stands still, nobody moving and the clock stopped, or goes on; `true` if that changed anything |
@@ -87,12 +92,15 @@ what the players are known by on the wire; a slot is reused once its player has 
 | `server.set_password([password])` | the password players join with, from now on until the server stops (the config's after); none, or `""`, for none: `true`, or `false` for one longer than 32 letters or with a space or quote |
 | `server.next_map([map])` | the round ends now; on `map` if given, else the rotation's next: `true`, or `false` (and nothing changes) for a map the server hasn't got, which it couldn't load |
 | `server.maps()` | the server's list of maps, the one its votes and map window pick from: the rotation (`maps` in server.config.mjson), or every map it has when there is none |
+| `server.spawns()` | the map's spawn points, in its order: `{kind = ..., x = ..., y = ...}` each, `kind` one of `"general"`, `"alpha"`, `"bravo"`, `"charlie"`, `"delta"`, `"alpha_flag"`, `"bravo_flag"`, `"yellow_flag"`, the kits' (`"medical_kit"`, `"grenade_kit"`, `"cluster_kit"`, `"vest_kit"`, `"flamer_kit"`, `"berserk_kit"`, `"predator_kit"`), `"bow"` and `"stationary_gun"` |
 | `server.map()`, `server.round()` | the map; the round, from 1 |
 | `server.tick()`, `server.time_left()` | the world's tick; the seconds left in the round |
 | `server.scores()` | `{alpha = n, bravo = n}` |
 | `server.players()` | every player's table, in slot order |
 | `server.player(slot)` | one player's, or `nil` |
 | `server.kick(slot [, reason])` | the player put off, told `reason`; a bot is simply removed |
+| `server.kill(slot)` | the soldier killed at the next tick, as an admin's `pkill`, and the kill heard as a suicide: `true`, or `false` for nobody in `slot`, or one not alive |
+| `server.set_spawn(slot [, x, y])` | where the soldier is placed from now on, each time it is placed (a respawn, a team chosen), over its team's spawn points, until the round ends or it leaves; with no place, its team's spawn points again: `true`, or `false` for nobody in `slot` |
 | `server.ban(slot [, minutes [, reason]])` | the player banned by its address and its machine both, as an admin's `ban`, for `minutes` (none, or 0, for ever), and put off, told `reason`: `true`, or `false` for a slot no person has: a bot isn't banned (`server.kick` removes one) |
 | `server.ban_ip(ip [, minutes [, reason]])` | an address banned, as `banip`, and anyone on from it put off: `true`, or `false` for text that isn't an address |
 | `server.ban_hwid(hwid [, minutes [, reason]])` | a machine banned by its hardware ID, as `banhw`, and anyone on from it put off: `true`, or `false` for text that isn't a hardware ID |
@@ -121,6 +129,40 @@ platform's TLS (Windows and macOS) or mbedTLS, so `https` works.
 `json.encode(value)` and `json.decode(text)` go between Lua and JSON: a table with keys
 1..n is an array, any other an object, `json.null` stands for null (as `nil` cannot be
 held in a table), and `json.array(t)` marks an empty table as an array.
+
+## Databases
+
+```lua
+local d = assert(db.open("stats.db"))   -- in the server's folder; made if it isn't there
+d:exec([[CREATE TABLE IF NOT EXISTS kills (name TEXT NOT NULL, weapon TEXT, at INTEGER);
+         CREATE INDEX IF NOT EXISTS kills_name ON kills (name)]])
+d:exec("INSERT INTO kills VALUES (?, ?, ?)", name, weapon, os.time())
+for _, row in ipairs(d:query("SELECT name, COUNT(*) AS n FROM kills GROUP BY name ORDER BY n DESC LIMIT ?", 5)) do
+    server.say(("%s: %d"):format(row.name, row.n))
+end
+local mine = d:first("SELECT COUNT(*) AS n FROM kills WHERE name = ?", name)   -- a row, or nil
+d:transaction(function(t) t:exec(...); t:exec(...) end)   -- all of it, or (an error) none
+d:close()                                                 -- or let the script's end close it
+```
+
+`db.open(path)` opens an [SQLite](https://www.sqlite.org/lang.html) database, a file
+any script may keep for itself (or share with another), and gives a handle, or `nil` and
+why. `d:exec(sql, ...)` runs every statement in `sql` and gives the rows the last
+changed and the last row inserted's id; `d:query(sql, ...)` runs one statement and gives
+its rows, a list of tables by column name; `d:first(sql, ...)` the first of them, or
+`nil`. `d:transaction(fn)` runs `fn(d)` between `BEGIN` and `COMMIT`, giving back what it
+returns; an error in it rolls everything back and is raised again.
+
+The values go in as `?`s, in order, never into the SQL's text: a player's name is only
+ever a name, whatever it holds. A number goes in as an integer or a real, as Lua has it,
+a boolean as 1 or 0, and `nil` as NULL; a column comes back as an integer, a number or a
+string, and NULL as no key in the row. An SQL error, or a count of values that isn't the
+`?`s', is the script's error.
+
+The calls run on the server's thread, as everything the script does: keep them to quick
+ones, by an index, and a write to when something happened, not every tick. A database is
+opened in WAL mode, so one killed mid-write keeps what it had, and another program (the
+`sqlite3` tool, a web page) may read it while the server runs.
 
 ## An example
 

@@ -31,10 +31,30 @@ server: {
   aimbot_bots: false
   // with aimbot_bots, the percent of shots a bot of typical accuracy throws wide on purpose; a sharper bot fewer, a sloppier more, by its profile and the difficulty; 0 none
   aimbot_miss_chance: 5
+  // the grenades a soldier carries at most, and is placed with, 0 to 5; 0 for none, and no grenade kits on the maps
+  max_grenades: 2
   // the percentage of players whose yes passes a vote
   vote_percent: 60
   // the folder of Lua scripts the server runs: every .lua in it, in name order (docs/scripting.md); a .lua.disabled is passed over; none ship with the server, and examples are at https://github.com/soldatreloaded/soldatreloaded-scripts; empty for none
   scripts: "scripts"
+}
+
+// the guns a soldier may carry: one off is greyed out in the weapons menu and never given; with no primary on everyone has the fists, and with no secondary on the fists are the secondary
+guns: {
+  desert_eagles: true
+  mp5: true
+  ak74: true
+  steyr_aug: true
+  spas12: true
+  ruger77: true
+  m79: true
+  barrett: true
+  minimi: true
+  minigun: true
+  ussocom: true
+  knife: true
+  chainsaw: true
+  law: true
 }
 
 // the rotation, played in turn; none plays every map under data/maps, the map again each round

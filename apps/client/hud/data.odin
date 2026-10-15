@@ -44,6 +44,8 @@ Hud_Data :: struct {
 	vote:         Vote_Box,
 	radio:        Radio_Menu,
 	emotes:       Emote_Wheel, // up while its key is held
+	world_texts:  []Script_Text, // a server script's texts in the world
+	screen_texts: []Script_Text, // and on the screen, a clock's time already after its text
 
 	// the line, and demos
 	online:       bool, // on a server: the line's quality is shown
@@ -71,6 +73,14 @@ Hud_Data :: struct {
 	fps:          i32,
 	seconds:      f64, // the clock what blinks and bobs goes by
 	tick:         u32, // the world's, which the typing dots step by
+}
+
+// A text a server's script shows at a place in the world, or on the screen.
+Script_Text :: struct {
+	text:  string,
+	pos:   [2]f32,   // its middle: in the world, or in the 640 by 480 layout
+	color: rl.Color,
+	scale: f32,      // of the big messages' lettering
 }
 
 Player :: struct {

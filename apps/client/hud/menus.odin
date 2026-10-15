@@ -38,6 +38,7 @@ Menus :: struct {
 	players:      [sim.MAX_PLAYERS]bool,
 	me:           sim.Soldier_Id,
 	map_count:    int,
+	guns_off:     res.Weapon_Set, // the guns the server gives nobody: greyed out, and never picked
 	kick_index:   sim.Soldier_Id, // the player the kick window shows
 	map_index:    int,            // the map the map window shows
 }
@@ -266,6 +267,7 @@ choose :: proc(menus: ^Menus, menu: Menu, button: int) -> Menu_Action {
 		return Pick_Team{res.Team(button + 1)}
 	case .Weapons:
 		weapon := res.Weapon(button + 1)
+		if weapon in menus.guns_off do return nil
 		if button >= PRIMARIES do return Pick_Secondary{weapon}
 		menus_show(menus, .Weapons, false)
 		return Pick_Primary{weapon}

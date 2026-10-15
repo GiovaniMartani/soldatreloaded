@@ -228,9 +228,9 @@ pump_until :: proc(sv: ^server.Server, s: ^server.Script, flag: string, max: int
 hosted :: proc(t: ^testing.T) {
 	if !testing.expect(t, net.net_init(), "ENet starts") do return
 	defer net.net_shutdown()
-	config := res.Server_Config {
-		server = {hostname = "script test", port = PORT},
-	}
+	config := res.DEFAULT_SERVER_CONFIG
+	config.server.hostname = "script test"
+	config.server.port = PORT
 	sv := new(server.Server)
 	defer free(sv)
 	if !testing.expectf(t, server.server_init(sv, {config = &config, data_dir = game.DATA_DIR, first_map = "ctf_Ash"}), "a server on port %d for the script", PORT) do return
@@ -279,13 +279,40 @@ hosted :: proc(t: ^testing.T) {
 	testing.expect(t, holds(s, "server.kick(1)") && holds(s, "assert(left and server.player(1) == nil and #server.players() == 1)"),
 		"and kicks it, and hears it leave")
 
+	// where a player is, the map's spawn points, and a kill asked for
+	pos := sv.game.world.soldiers[0].body.pos
+	testing.expect(t, holds(s, fmt.tprintf("local p = server.player(0); assert(p.x == %v and p.y == %v, p.x .. ',' .. p.y)", pos.x, pos.y)),
+		"the player's table says where it is")
+	testing.expect(t, holds(s, "local k = {}; for _, sp in ipairs(server.spawns()) do k[sp.kind] = (k[sp.kind] or 0) + 1; assert(type(sp.x) == 'number' and type(sp.y) == 'number') end; assert(k.alpha and k.alpha_flag == 1 and k.bravo_flag == 1)"),
+		"the map's spawn points, its two flags among them")
+	alive := pump_until(sv, s, "(server.player(0).alive or nil)", 10 * game.TICK_RATE)
+	if testing.expect(t, alive, "the bot is alive") {
+		testing.expect(t, holds(s, "assert(server.kill(0) and not server.kill(9))"), "the script kills it; not nobody")
+		pump(sv, s)
+		testing.expect(t, holds(s, "assert(not server.player(0).alive and not server.kill(0) and kills == 1)"), "and it is dead, heard, not to be killed again")
+	}
+	testing.expect(t, holds(s, "kills = 0"), "the kills counted afresh")
+
+	// a place set for the bot: it is placed there, until the place is taken away
+	at: [2]f32 // the bravo flag's, where an alpha soldier is never placed
+	for sp in sv.game.world.polymap.spawnpoints do if sp.active && sp.kind == .Bravo_Flag do at = sp.pos
+	testing.expect(t, holds(s, fmt.tprintf("assert(server.set_spawn(0, %v, %v) and not server.set_spawn(9, 0, 0))", at.x, at.y)), "the script sets where the bot is placed")
+	testing.expect(t, holds(s, "assert(server.player(0).admin == false)"), "a bot isn't an admin")
+	if testing.expect(t, pump_until(sv, s, "(server.player(0).alive or nil)", 10 * game.TICK_RATE), "the bot is placed again") {
+		placed := sv.game.world.soldiers[0].body.pos
+		testing.expectf(t, abs(placed.x - at.x) < 5 && abs(placed.y - at.y) < 5, "where it was set, %v, not %v", at, placed)
+	}
+	testing.expect(t, holds(s, "assert(server.set_spawn(0))") && sv.game.world.spawns_set[0] == nil, "and the place taken away")
+
 	// the ticks, every second, and a kill heard among the tick's rulings
 	pump(sv, s, 5)
 	testing.expect(t, holds(s, "assert(ticks >= 5, ticks)"), "on_tick runs with every tick")
 	pump(sv, s, game.TICK_RATE)
 	testing.expect(t, holds(s, "assert(seconds >= 1, seconds)"), "on_second once a second")
 	// the rulings of a tick, as the referee would leave them: a wound and its kill, the
-	// flag plays (a capture among them), a placing, and a flag a death let go of
+	// flag plays (a capture among them), a placing, and a flag a death let go of; heard
+	// alone, the bots' own fighting until now forgotten
+	testing.expect(t, holds(s, "kills = 0; dmg = {}; flags = {}"))
 	alpha_flag, bravo_flag: game.Thing_Id
 	for &thing, i in sv.game.world.things {
 		if thing.kind == .Alpha_Flag do alpha_flag = game.Thing_Id(i)
@@ -391,12 +418,15 @@ match_controls :: proc(t: ^testing.T, sv: ^server.Server, s: ^server.Script) {
 API :: `
 for _, name in ipairs({'say', 'say_to', 'print', 'command', 'pause', 'unpause', 'paused', 'next_map', 'maps',
                        'map', 'round', 'tick', 'time_left', 'scores', 'players', 'player', 'kick', 'add_bot',
+                       'set_password', 'spawns', 'kill', 'set_spawn', 'set_team', 'ban', 'ban_ip', 'ban_hwid',
+                       'unban', 'unban_last', 'world_text', 'world_text_to', 'screen_text', 'screen_text_to',
                        'on', 'off'}) do
   assert(type(server[name]) == 'function', 'server.' .. name)
 end
 for _, name in ipairs({'request', 'get', 'post'}) do assert(type(http[name]) == 'function', 'http.' .. name) end
 for _, name in ipairs({'encode', 'decode', 'array'}) do assert(type(json[name]) == 'function', 'json.' .. name) end
 assert(json.null ~= nil, 'json.null')
+assert(type(db.open) == 'function', 'db.open')
 for _, event in ipairs({'chat', 'command', 'join', 'leave', 'kill', 'capture', 'spawn', 'match_end', 'round_end',
                         'round_start', 'tick', 'second'}) do
   local fn = function() end
@@ -413,6 +443,70 @@ api :: proc(t: ^testing.T) {
 	defer free(s)
 	testing.expect(t, server.script_open(s, sv, path), "every call and event docs/scripting.md has is there")
 	server.script_close(s)
+}
+
+// A database: made where it wasn't, the values as ?s and back with their types, a name
+// that looks like SQL only a name, every statement of an exec, a transaction kept whole
+// or not at all, the ?s and the values counted, and a handle closed.
+@(private = "file")
+DATABASE :: `
+local path = ...
+local d = assert(db.open(path))
+assert(d:first('PRAGMA journal_mode').journal_mode == 'wal', 'in WAL mode')
+d:exec([[CREATE TABLE times (map TEXT NOT NULL, name TEXT NOT NULL, ticks INTEGER, best REAL, kept INTEGER);
+         CREATE INDEX times_map ON times (map, ticks)]])
+local changed, id = d:exec('INSERT INTO times VALUES (?, ?, ?, ?, ?)', 'ctf_Ash', "Bob'); DROP TABLE times;--", 120, 2.5, true)
+assert(changed == 1 and id == 1, 'one row, the first')
+d:exec('INSERT INTO times VALUES (?, ?, ?, ?, ?)', 'ctf_Ash', 'Alice', 90, nil, false)
+local rows = d:query('SELECT name, ticks, best, kept FROM times WHERE map = ? ORDER BY ticks', 'ctf_Ash')
+assert(#rows == 2 and rows[1].name == 'Alice' and rows[2].name == "Bob'); DROP TABLE times;--", 'both, in order, the name only a name')
+assert(math.type(rows[1].ticks) == 'integer' and rows[1].best == nil and rows[1].kept == 0, 'an integer, a NULL as no key, false as 0')
+assert(rows[2].best == 2.5 and rows[2].kept == 1, 'a real, true as 1')
+assert(d:first('SELECT COUNT(*) AS n FROM times').n == 2 and d:first('SELECT * FROM times WHERE ticks > 1000') == nil, 'first, or nil')
+assert(#d:query('SELECT * FROM times WHERE map = ?', 'nowhere') == 0, 'no rows, an empty list')
+
+-- a transaction: all of it, or with an error none of it
+assert(d:transaction(function(t) t:exec('UPDATE times SET ticks = ticks + 1'); return 'kept' end) == 'kept')
+assert(d:first('SELECT ticks FROM times WHERE name = ?', 'Alice').ticks == 91, 'committed')
+local ok = pcall(d.transaction, d, function(t) t:exec('DELETE FROM times'); error('changed my mind') end)
+assert(not ok and d:first('SELECT COUNT(*) AS n FROM times').n == 2, 'rolled back')
+
+-- what isn't so is an error
+assert(not pcall(d.exec, d, 'INSERT INTO times VALUES (?, ?, ?, ?, ?)', 'too', 'few'), 'too few values')
+assert(not pcall(d.exec, d, 'SELECT 1', 'one too many'), 'too many')
+assert(not pcall(d.query, d, 'SELECT 1; SELECT 2'), 'a query is one statement')
+assert(not pcall(d.exec, d, 'SELEKT nothing'), 'SQL that is not')
+assert(not pcall(d.exec, d, 'SELECT ?', {}), 'a table is no value')
+d:close()
+d:close()
+assert(not pcall(d.query, d, 'SELECT 1'), 'closed')
+
+-- it was kept: opened again, it is all there
+do
+  local again <close> = assert(db.open(path))
+  assert(again:first('SELECT COUNT(*) AS n FROM times').n == 2, 'kept in the file')
+end
+local none, why = db.open('/no/such/folder/x.db')
+assert(none == nil and type(why) == 'string', 'a file that cannot be made: nil and why')
+databased = true
+`
+
+@(test)
+database :: proc(t: ^testing.T) {
+	temp, _ := os.temp_directory(context.temp_allocator)
+	file := strings.concatenate({temp, "/soldatreloaded_script_test.db"}, context.temp_allocator)
+	for suffix in ([3]string{"", "-wal", "-shm"}) do os.remove(strings.concatenate({file, suffix}, context.temp_allocator))
+	defer for suffix in ([3]string{"", "-wal", "-shm"}) do os.remove(strings.concatenate({file, suffix}, context.temp_allocator))
+	path := write_scripts(t, "soldatreloaded_script_database", {{"db.lua", "databased = false"}})
+	sv := new(server.Server)
+	defer free(sv)
+	s := new(server.Script)
+	defer free(s)
+	if !testing.expect(t, server.script_open(s, sv, path), "a script") do return
+	defer server.script_close(s)
+	code := fmt.tprintf("local f = load(%q); f(%q)", DATABASE, file)
+	testing.expect(t, server.script_run(s, code, "database"), "the database does all it says")
+	testing.expect(t, holds(s, "assert(databased)"), "to the end")
 }
 
 // No scripts ship with the server: with its scripts folder not there, it runs with no

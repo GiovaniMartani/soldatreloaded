@@ -84,7 +84,7 @@ runs:
         for p in "${programs[@]}"; do
           if [ "$platform" = linux ]; then deps=$(ldd "$stage/$p"); else deps=$(llvm-objdump -p "$stage/$p" | grep 'DLL Name'); fi
           echo "$p:"; echo "$deps"
-          if grep -iE 'raylib|enet|curl|mbed|libz\.|lua|vcruntime|msvcp' <<< "$deps"; then
+          if grep -iE 'raylib|enet|curl|mbed|libz\.|lua|sqlite|vcruntime|msvcp' <<< "$deps"; then
             echo "::error::$p links a library a player would need installed"
             exit 1
           fi

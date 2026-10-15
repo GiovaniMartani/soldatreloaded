@@ -102,13 +102,27 @@ weapon_is_secondary :: proc(weapon: res.Weapon) -> bool {
 	return weapon >= .USSOCOM && weapon <= .LAW
 }
 
-// A loadout as a host allows it: the original's first loadout for a choice that isn't
-// one. No primary picked yet is the fists, as the original spawns one with NOWEAPON.
-loadout_allowed :: proc(chosen: Loadout) -> Loadout {
-	return {
-		primary   = chosen.primary if weapon_is_primary(chosen.primary) || chosen.primary == .Punch else .Desert_Eagles,
-		secondary = chosen.secondary if weapon_is_secondary(chosen.secondary) else .Knife,
+// A loadout as a host allows it, with the guns `off` taken away: a choice that isn't one,
+// or of a gun that's off, the first of its column on (the original's first loadout, the
+// Desert Eagles and the knife, when they are), else the fists. No primary picked yet is
+// the fists, as the original spawns one with NOWEAPON.
+loadout_allowed :: proc(chosen: Loadout, off: res.Weapon_Set = {}) -> Loadout {
+	primary := chosen.primary
+	if primary != .Punch && (!weapon_is_primary(primary) || primary in off) {
+		primary = first_on(.Desert_Eagles, .Minigun, off)
 	}
+	secondary := chosen.secondary
+	if !weapon_is_secondary(secondary) || secondary in off {
+		secondary = .Knife if .Knife not_in off else first_on(.USSOCOM, .LAW, off)
+	}
+	return {primary, secondary}
+}
+
+// The first gun from `first` to `last` that isn't `off`; the fists if none is.
+@(private = "file")
+first_on :: proc(first, last: res.Weapon, off: res.Weapon_Set) -> res.Weapon {
+	for weapon in first ..= last do if weapon not_in off do return weapon
+	return .Punch
 }
 
 // Whether it can be let go of, to lie on the ground as a thing.

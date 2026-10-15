@@ -33,11 +33,15 @@ the bonus kits, the flamer and the bows are left out.
 ## Running it
 
 You need a recent nightly of [Odin](https://odin-lang.org/). Everything else (raylib,
-ENet, Lua, curl, stb) comes with Odin's `vendor` collection. It is developed on
-Windows; on Linux, a build from the source links X11 and the system's ENet, curl and
-mbedTLS (on Debian and Ubuntu: `libx11-dev libenet-dev libcurl4-openssl-dev
-libmbedtls-dev`). A release links its libraries in, so players install nothing
-(docs/git.md).
+ENet, Lua, curl, stb) comes with Odin's `vendor` collection, but SQLite, which the
+server's scripts keep their databases in. It is developed on Windows; on Linux, a build
+from the source links X11 and the system's ENet, curl, mbedTLS and SQLite (on Debian and
+Ubuntu: `libx11-dev libenet-dev libcurl4-openssl-dev libmbedtls-dev libsqlite3-dev`). On
+Windows the server links `sqlite3.lib`, built once from SQLite's
+[amalgamation](https://www.sqlite.org/download.html) in a Visual Studio developer prompt
+(`cl /c /O2 /MD sqlite3.c` and `lib sqlite3.obj`), its folder given to the linker:
+`odin run ../apps/server -extra-linker-flags:/LIBPATH:C:\path\to\it`. A release links its
+libraries in, so players install nothing (docs/git.md).
 
 Every program runs from the install's root, which is `assets/` in this repository:
 

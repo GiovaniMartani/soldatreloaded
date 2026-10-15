@@ -13,6 +13,7 @@ Game_Settings :: struct {
 	respawn_min_wave: i32,  // ticks every death waits, besides its wave (sv_respawntime_minwave)
 	respawn_max_wave: i32,  // ticks a death waits at most, its wave and all (sv_respawntime_maxwave)
 	max_grenades:     i32,
+	guns_off:         res.Weapon_Set, // the guns no soldier is given: none, every one on
 	medikit_cooldown: i32,  // seconds before a second medikit
 	kits_collide:     bool, // bullets and blasts knock kits about
 	guns_collide:     bool, // and dropped guns

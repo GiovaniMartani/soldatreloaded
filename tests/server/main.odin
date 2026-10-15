@@ -45,6 +45,8 @@ Test_Client :: struct {
 	announcements: int, // and from the server itself
 	heard:         sa.Small_Array(16, utils.Short_String(128)), // every line's text, in the order it came
 	snapshots:     int,
+	texts:         sa.Small_Array(16, net.Msg_Text), // every script's text, in the order it came
+	texts_mapped:  bool, // a world text came after the Map
 	stream:        net.Client_Stream,
 	game:          ^game.Game, // the client's world, made on the Map
 }
@@ -98,6 +100,11 @@ client_pump :: proc(c: ^Test_Client) {
 				} else {
 					c.chats += 1
 				}
+			case .Text:
+				m: net.Msg_Text
+				net.msg_text(&b, &m)
+				sa.append(&c.texts, m)
+				c.texts_mapped = c.mapped
 			case .Snapshot:
 				if c.game != nil && net.client_stream_hear(&c.stream, c.game, c.welcome.slot, e.data[:e.size]) do c.snapshots += 1
 			}
@@ -615,4 +622,233 @@ script_bans :: proc(t: ^testing.T) {
 	testing.expect(t, cut, "and her line is closed")
 	testing.expect(t, server.script_run(s, "local u = server.unban_last(); assert(u and u.ip == '127.0.0.1' and u.hwid == '0123456789A')", "check"),
 		"the ban named her address and her machine both")
+}
+
+// A script's texts: those for everyone kept and told to whoever joins after its Map, one
+// to a player alone not kept, an empty one taking a layer away, the screen's layers apart
+// from the world's, a timer's clock, and a new round taking them all.
+@(test)
+script_texts :: proc(t: ^testing.T) {
+	testing.expect(t, net.net_init())
+	defer net.net_shutdown()
+	sv := new(server.Server)
+	defer free(sv)
+	config: res.Server_Config
+	testing.expect(t, open_server(sv, &config))
+	defer server.server_destroy(sv)
+
+	s := new(server.Script)
+	defer free(s)
+	s.quiet = true
+	path := fmt.tprintf("%s/soldatreloaded_server_test_texts.lua", os.get_env("TEMP", context.temp_allocator) if ODIN_OS == .Windows else "/tmp")
+	utils.write_file(path, transmute([]byte)string("-- the API alone\n"))
+	defer os.remove(path)
+	if !testing.expect(t, server.script_open(s, sv, path), "a script state") do return
+	defer server.script_close(s)
+
+	// before anyone joins: three for everyone, one of them taken away again
+	testing.expect(t, server.script_run(s, "server.world_text(0, '1', 100, -50, {color = '00FF00', scale = 0.5}); server.world_text(1, '2', 300, -50, {seconds = 30}); server.world_text(2, 'gone', 0, 0); server.world_text(2, '')", "texts"),
+		"the script shows texts to everyone")
+	testing.expect(t, !server.script_run(s, "server.world_text(256, 'x', 0, 0)", "bad"), "not on a layer there isn't")
+
+	c := new(Test_Client)
+	defer free(c)
+	testing.expect(t, client_open(c, "Runner"))
+	defer client_close(c)
+	told := pump_until(sv, {c}, proc(cs: []^Test_Client) -> bool { return sa.len(cs[0].texts) >= 2 })
+	if !testing.expect(t, told, "the joiner is told the texts kept") do return
+	testing.expect(t, c.texts_mapped, "after the Map, which would take them away")
+	testing.expect_value(t, sa.len(c.texts), 2)
+	first, second := sa.get(c.texts, 0), sa.get(c.texts, 1)
+	testing.expect_value(t, utils.short_string_text(&first.text), "1")
+	testing.expect_value(t, first.layer, 0)
+	testing.expect_value(t, first.pos, [2]f32{100, -50})
+	testing.expect_value(t, first.color, utils.Rgba{0, 255, 0, 255})
+	testing.expect_value(t, first.scale, 0.5)
+	testing.expect_value(t, first.seconds, 0)
+	testing.expect_value(t, second.layer, 1)
+	testing.expect(t, second.seconds > 0 && second.seconds <= 30, "what is left of its time")
+	testing.expect_value(t, second.color, utils.Rgba{255, 255, 255, 255})
+	testing.expect(t, first.place == .World && !first.clock, "in the world, with no clock")
+
+	// one to the runner alone, and it hears it
+	sa.clear(&c.texts)
+	testing.expect(t, server.script_run(s, fmt.tprintf("server.world_text_to(%d, 0, 'next', 100, -50)", c.welcome.slot), "to"), "a text to one player")
+	heard := pump_until(sv, {c}, proc(cs: []^Test_Client) -> bool { return sa.len(cs[0].texts) >= 1 })
+	if testing.expect(t, heard, "the player hears it") {
+		only := sa.get(c.texts, 0)
+		testing.expect_value(t, utils.short_string_text(&only.text), "next")
+	}
+	// on the screen: a timer to the runner, counting from the tick given, and one for
+	// everyone on layer 0, which is the screen's and not the world's
+	sa.clear(&c.texts)
+	testing.expect(t, server.script_run(s, fmt.tprintf("server.screen_text_to(%d, 2, '', 320, 360, {{clock = 1234, scale = 0.5}}); server.screen_text(0, 'Run!', 320, 100)", c.welcome.slot), "screen"),
+		"the script shows texts on the screen")
+	both := pump_until(sv, {c}, proc(cs: []^Test_Client) -> bool { return sa.len(cs[0].texts) >= 2 })
+	if testing.expect(t, both, "the player hears them") {
+		timer, title := sa.get(c.texts, 0), sa.get(c.texts, 1)
+		testing.expect(t, timer.place == .Screen && timer.layer == 2 && timer.clock && timer.clock_from == 1234 && timer.text.length == 0, "a timer alone, from tick 1234")
+		testing.expect_value(t, timer.pos, [2]f32{320, 360})
+		testing.expect(t, title.place == .Screen && title.layer == 0 && !title.clock, "and a title")
+	}
+	testing.expect(t, sv.texts[.Screen][0] != nil && sv.texts[.World][0] != nil, "the screen's layer 0 kept beside the world's")
+	testing.expect(t, sv.texts[.Screen][2] == nil, "the runner's own timer not kept")
+	kept := 0
+	for layers in sv.texts do for k in layers do kept += int(k != nil)
+	testing.expect_value(t, kept, 3) // the player's own aren't kept
+
+	// a new round: nothing kept
+	server.server_change_map(sv, "ctf_Ash")
+	for _ in 0 ..< 20 * game.TICK_RATE {
+		server.server_pump(sv, server.TICK_SECONDS)
+		if sv.round > 1 do break
+	}
+	kept = 0
+	for layers in sv.texts do for k in layers do kept += int(k != nil)
+	testing.expect(t, sv.round > 1, "the next round")
+	testing.expect_value(t, kept, 0)
+}
+
+// A server of no grenades: none on its maps, its Map says so, and a soldier placed holds
+// none; and the game's own two, with their kits, for a config that doesn't say.
+@(test)
+no_grenades :: proc(t: ^testing.T) {
+	testing.expect(t, net.net_init())
+	defer net.net_shutdown()
+	grenade_kits :: proc(sv: ^server.Server) -> (n: int) {
+		for &thing in sv.game.world.things do n += int(thing.kind == .Grenade_Kit)
+		return
+	}
+
+	sv := new(server.Server)
+	defer free(sv)
+	config := res.DEFAULT_SERVER_CONFIG
+	config.server.port = PORT
+	config.server.max_grenades = 0
+	if !testing.expect(t, server.server_init(sv, {config = &config, data_dir = game.DATA_DIR, first_map = "ctf_Ash"})) do return
+	defer server.server_destroy(sv)
+	testing.expect_value(t, sv.game.settings.max_grenades, 0)
+	testing.expect_value(t, grenade_kits(sv), 0)
+
+	c := new(Test_Client)
+	defer free(c)
+	testing.expect(t, client_open(c, "Runner"))
+	defer client_close(c)
+	mapped := pump_until(sv, {c}, proc(cs: []^Test_Client) -> bool { return cs[0].mapped })
+	if !testing.expect(t, mapped, "the client is told the map") do return
+	testing.expect_value(t, c.map_msg.grenades, 0)
+	slot, added := server.server_add_bot(sv, .Alpha)
+	if testing.expect(t, added, "a bot") {
+		for _ in 0 ..< 10 * game.TICK_RATE {
+			server.server_pump(sv, server.TICK_SECONDS)
+			if !sv.game.world.soldiers[slot].vitals.dead do break
+		}
+		testing.expect_value(t, sv.game.world.soldiers[slot].arsenal.grenades, 0)
+	}
+
+	// the game's own
+	other := new(server.Server)
+	defer free(other)
+	defaults := res.DEFAULT_SERVER_CONFIG
+	defaults.server.port = PORT + 1
+	if !testing.expect(t, server.server_init(other, {config = &defaults, data_dir = game.DATA_DIR, first_map = "ctf_Ash"})) do return
+	defer server.server_destroy(other)
+	testing.expect_value(t, other.game.settings.max_grenades, 2)
+	testing.expect(t, grenade_kits(other) > 0, "ctf_Ash has its grenade kits")
+}
+
+// A server of no waits, neither a minimum nor waves: a soldier killed is placed again at
+// once.
+@(test)
+respawn_at_once :: proc(t: ^testing.T) {
+	testing.expect(t, net.net_init())
+	defer net.net_shutdown()
+	sv := new(server.Server)
+	defer free(sv)
+	config := res.DEFAULT_SERVER_CONFIG
+	config.server.port = PORT
+	config.server.respawn_min_wave = 0
+	config.server.respawn_max_wave = 0
+	if !testing.expect(t, server.server_init(sv, {config = &config, data_dir = game.DATA_DIR, first_map = "ctf_Ash"})) do return
+	defer server.server_destroy(sv)
+
+	slot, added := server.server_add_bot(sv, .Alpha)
+	if !testing.expect(t, added, "a bot") do return
+	soldier := &sv.game.world.soldiers[slot]
+	for _ in 0 ..< 10 * game.TICK_RATE {
+		server.server_pump(sv, server.TICK_SECONDS)
+		if !soldier.vitals.dead do break
+	}
+	if !testing.expect(t, !soldier.vitals.dead, "the bot is placed") do return
+	life := soldier.vitals.life
+	sv.suicides[slot] = false
+	ticks := 0
+	for ticks < game.TICK_RATE {
+		server.server_pump(sv, server.TICK_SECONDS)
+		ticks += 1
+		if soldier.vitals.life > life && !soldier.vitals.dead do break
+	}
+	testing.expectf(t, soldier.vitals.life > life && !soldier.vitals.dead, "placed again after %d ticks", ticks)
+	testing.expectf(t, ticks <= 3, "at once, not after %d ticks", ticks)
+}
+
+// A loadout as the guns on allow it: a gun that's off gives way to the first of its column
+// on, the knife first among the secondaries; with none on, the fists.
+@(test)
+loadouts_allowed :: proc(t: ^testing.T) {
+	testing.expect_value(t, game.loadout_allowed({.AK74, .LAW}), game.Loadout{.AK74, .LAW})
+	testing.expect_value(t, game.loadout_allowed({.AK74, .LAW}, {.AK74, .LAW}), game.Loadout{.Desert_Eagles, .Knife})
+	testing.expect_value(t, game.loadout_allowed({.Desert_Eagles, .Knife}, {.Desert_Eagles, .Knife}), game.Loadout{.MP5, .USSOCOM})
+	testing.expect_value(t, game.loadout_allowed({.Punch, .Chainsaw}, {.Chainsaw}), game.Loadout{.Punch, .Knife})
+	primaries := res.Weapon_Set{.Desert_Eagles, .MP5, .AK74, .Steyr_AUG, .Spas12, .Ruger77, .M79, .Barrett, .Minimi, .Minigun}
+	every := primaries + {.USSOCOM, .Knife, .Chainsaw, .LAW}
+	testing.expect_value(t, game.loadout_allowed({.Minigun, .Knife}, primaries), game.Loadout{.Punch, .Knife})
+	testing.expect_value(t, game.loadout_allowed({.Minigun, .Knife}, every), game.Loadout{.Punch, .Punch})
+	testing.expect_value(t, res.guns_off(res.ALL_GUNS), res.Weapon_Set{})
+	none: res.Gun_Settings
+	testing.expect_value(t, res.guns_off(none), every)
+}
+
+// A server of no guns: its Map says which are off, and a bot (whose profile has a
+// favourite gun) is placed with the fists in both hands.
+@(test)
+no_guns :: proc(t: ^testing.T) {
+	testing.expect(t, net.net_init())
+	defer net.net_shutdown()
+	sv := new(server.Server)
+	defer free(sv)
+	config := res.DEFAULT_SERVER_CONFIG
+	config.server.port = PORT
+	config.guns = {}
+	if !testing.expect(t, server.server_init(sv, {config = &config, data_dir = game.DATA_DIR, first_map = "ctf_Ash"})) do return
+	defer server.server_destroy(sv)
+
+	c := new(Test_Client)
+	defer free(c)
+	testing.expect(t, client_open(c, "Runner"))
+	defer client_close(c)
+	mapped := pump_until(sv, {c}, proc(cs: []^Test_Client) -> bool { return cs[0].mapped })
+	if !testing.expect(t, mapped, "the client is told the map") do return
+	testing.expect_value(t, c.map_msg.guns_off, res.guns_off({}))
+
+	slot, added := server.server_add_bot(sv, .Alpha)
+	if !testing.expect(t, added, "a bot") do return
+	soldier := &sv.game.world.soldiers[slot]
+	for _ in 0 ..< 10 * game.TICK_RATE {
+		server.server_pump(sv, server.TICK_SECONDS)
+		if !soldier.vitals.dead do break
+	}
+	if !testing.expect(t, !soldier.vitals.dead, "the bot is placed") do return
+	testing.expect_value(t, soldier.arsenal.primary.weapon, res.Weapon.Punch)
+	testing.expect_value(t, soldier.arsenal.secondary.weapon, res.Weapon.Punch)
+
+	// and placed again after a death, the same
+	sv.suicides[slot] = false
+	life := soldier.vitals.life
+	for _ in 0 ..< 10 * game.TICK_RATE {
+		server.server_pump(sv, server.TICK_SECONDS)
+		if soldier.vitals.life > life && !soldier.vitals.dead do break
+	}
+	testing.expect(t, soldier.vitals.life > life, "placed again")
+	testing.expect(t, soldier.arsenal.primary.weapon == .Punch && soldier.arsenal.secondary.weapon == .Punch, "with the fists again")
 }

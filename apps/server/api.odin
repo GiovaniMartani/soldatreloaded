@@ -10,6 +10,7 @@ import lua "vendor:lua/5.4"
 
 import "../../core/game"
 import net "../../core/network"
+import res "../../core/resources"
 import "../../core/utils"
 import "lists"
 
@@ -21,6 +22,10 @@ import "lists"
 server_api := [?]lua.L_Reg {
 	{"say", l_say},
 	{"say_to", l_say_to},
+	{"world_text", l_world_text},
+	{"world_text_to", l_world_text_to},
+	{"screen_text", l_screen_text},
+	{"screen_text_to", l_screen_text_to},
 	{"print", l_print},
 	{"command", l_command},
 	{"pause", l_pause},
@@ -30,6 +35,7 @@ server_api := [?]lua.L_Reg {
 	{"next_map", l_next_map},
 	{"map", l_map},
 	{"maps", l_maps},
+	{"spawns", l_spawns},
 	{"round", l_round},
 	{"tick", l_tick},
 	{"time_left", l_time_left},
@@ -37,6 +43,8 @@ server_api := [?]lua.L_Reg {
 	{"players", l_players},
 	{"player", l_player},
 	{"kick", l_kick},
+	{"kill", l_kill},
+	{"set_spawn", l_set_spawn},
 	{"add_bot", l_add_bot},
 	{"set_team", l_set_team},
 	{"ban", l_ban},
@@ -69,13 +77,14 @@ push_name :: proc(L: ^lua.State, sv: ^Server, slot: game.Soldier_Id) {
 	push_string(L, utils.short_string_text(&sv.players[slot].name))
 }
 
-// A player's table pushed: its slot, name, team, tally, ping, health, and whether it is
-// a bot, alive and watching; and a person's address and hardware ID, which a bot hasn't.
+// A player's table pushed: its slot, name, team, tally, ping, health, where it is, and
+// whether it is a bot, alive, watching and an admin; and a person's address and hardware
+// ID, which a bot hasn't.
 @(private)
 push_player :: proc(L: ^lua.State, sv: ^Server, slot: game.Soldier_Id) {
 	soldier := &sv.game.world.soldiers[slot]
 	player := &sv.players[slot]
-	lua.createtable(L, 0, 13)
+	lua.createtable(L, 0, 16)
 	if player.peer != nil {
 		push_string(L, lists.address_text(net.peer_address(player.peer)))
 		lua.setfield(L, -2, "ip")
@@ -104,8 +113,14 @@ push_player :: proc(L: ^lua.State, sv: ^Server, slot: game.Soldier_Id) {
 	lua.setfield(L, -2, "alive")
 	lua.pushboolean(L, b32(soldier.team == .Spectator))
 	lua.setfield(L, -2, "spectator")
+	lua.pushboolean(L, b32(player.admin))
+	lua.setfield(L, -2, "admin")
 	lua.pushnumber(L, lua.Number(soldier.vitals.health))
 	lua.setfield(L, -2, "health")
+	lua.pushnumber(L, lua.Number(soldier.body.pos.x))
+	lua.setfield(L, -2, "x")
+	lua.pushnumber(L, lua.Number(soldier.body.pos.y))
+	lua.setfield(L, -2, "y")
 }
 
 // Every player's table, in slot order.
@@ -180,6 +195,87 @@ l_say_to :: proc "c" (L: ^lua.State) -> c.int {
 	text := check_string(L, 2)
 	color := color_arg(L, 3)
 	if slot_present(s.server, slot) do server_say_to(s.server, game.Soldier_Id(slot), .Script, color, text)
+	return 0
+}
+
+// A text from the script's arguments at `index` on: layer, text [, x, y [, options]],
+// options {color = "RRGGBB" or {r, g, b} (white), scale = 1, seconds = 0 (until replaced),
+// clock = the tick a timer after the text counts from (none)}.
+@(private = "file")
+text_args :: proc(L: ^lua.State, index: c.int, place: net.Text_Place) -> (m: net.Msg_Text) {
+	m.place = place
+	layer := lua.L_checkinteger(L, index)
+	if layer < 0 || layer >= net.TEXT_LAYERS do lua.L_argerror(L, index, "a layer is 0 to 255")
+	m.layer = u8(layer)
+	utils.short_string_set(&m.text, check_string(L, index + 1))
+	m.pos = {f32(lua.L_optnumber(L, index + 2, 0)), f32(lua.L_optnumber(L, index + 3, 0))}
+	m.color = {255, 255, 255, 255}
+	m.scale = 1
+	options := index + 4
+	if lua.isnoneornil(L, options) do return
+	lua.L_checktype(L, options, c.int(lua.Type.TABLE))
+	lua.getfield(L, options, "color")
+	if !lua.isnil(L, -1) do m.color = color_arg(L, lua.gettop(L))
+	lua.getfield(L, options, "scale")
+	m.scale = clamp(f32(lua.L_optnumber(L, -1, 1)), 0.05, 10)
+	lua.getfield(L, options, "seconds")
+	m.seconds = u16(clamp(lua.L_optinteger(L, -1, 0), 0, lua.Integer(max(u16))))
+	lua.getfield(L, options, "clock")
+	if !lua.isnil(L, -1) {
+		m.clock = true
+		m.clock_from = u32(clamp(lua.L_checkinteger(L, -1), 0, lua.Integer(max(u32))))
+	}
+	lua.pop(L, 4)
+	return
+}
+
+// A text shown at `place`: to everyone, kept, or with `to_one`, to the player in the slot
+// that comes first.
+@(private = "file")
+text_call :: proc(L: ^lua.State, place: net.Text_Place, to_one: bool) {
+	s := script_of(L)
+	slot: lua.Integer
+	if to_one do slot = lua.L_checkinteger(L, 1)
+	m := text_args(L, 2 if to_one else 1, place)
+	if !to_one {
+		text_send(s.server, &m)
+	} else if slot_present(s.server, slot) {
+		text_send(s.server, &m, Slot(slot))
+	}
+}
+
+// server.world_text(layer, text [, x, y [, options]]): a text at (x, y) in the world for
+// everyone, on `layer` (0 to 255), replacing what was there; "" takes it away. Kept for
+// whoever joins, until the round ends.
+@(private = "file")
+l_world_text :: proc "c" (L: ^lua.State) -> c.int {
+	context = script_of(L).ctx
+	text_call(L, .World, false)
+	return 0
+}
+
+// server.world_text_to(slot, layer, text [, x, y [, options]]): the same to one player,
+// over what everyone has on that layer; not kept.
+@(private = "file")
+l_world_text_to :: proc "c" (L: ^lua.State) -> c.int {
+	context = script_of(L).ctx
+	text_call(L, .World, true)
+	return 0
+}
+
+// server.screen_text(layer, text [, x, y [, options]]) and screen_text_to(slot, ...): as
+// the world's, on the screen, at (x, y) in the 640 by 480 view, on layers of their own.
+@(private = "file")
+l_screen_text :: proc "c" (L: ^lua.State) -> c.int {
+	context = script_of(L).ctx
+	text_call(L, .Screen, false)
+	return 0
+}
+
+@(private = "file")
+l_screen_text_to :: proc "c" (L: ^lua.State) -> c.int {
+	context = script_of(L).ctx
+	text_call(L, .Screen, true)
 	return 0
 }
 
@@ -276,6 +372,53 @@ l_maps :: proc "c" (L: ^lua.State) -> c.int {
 	return 1
 }
 
+// The spawn points' kinds by the names server.spawns gives them.
+@(private = "file")
+spawn_kind_names := [res.Spawn_Kind]string {
+	.General        = "general",
+	.Alpha          = "alpha",
+	.Bravo          = "bravo",
+	.Charlie        = "charlie",
+	.Delta          = "delta",
+	.Alpha_Flag     = "alpha_flag",
+	.Bravo_Flag     = "bravo_flag",
+	.Grenade_Kit    = "grenade_kit",
+	.Medical_Kit    = "medical_kit",
+	.Cluster_Kit    = "cluster_kit",
+	.Vest_Kit       = "vest_kit",
+	.Flamer_Kit     = "flamer_kit",
+	.Berserk_Kit    = "berserk_kit",
+	.Predator_Kit   = "predator_kit",
+	.Yellow_Flag    = "yellow_flag",
+	.Bow            = "bow",
+	.Stationary_Gun = "stationary_gun",
+}
+
+// server.spawns(): the map's spawn points, in the map's order: {kind, x, y} each, kind
+// one of spawn_kind_names ("alpha", "bravo_flag", "medical_kit", ...).
+@(private = "file")
+l_spawns :: proc "c" (L: ^lua.State) -> c.int {
+	s := script_of(L)
+	context = s.ctx
+	lua.newtable(L)
+	polymap := s.server.game.world.polymap
+	if polymap == nil do return 1
+	n: lua.Integer
+	for spawnpoint in polymap.spawnpoints {
+		if !spawnpoint.active || spawnpoint.kind < min(res.Spawn_Kind) || spawnpoint.kind > max(res.Spawn_Kind) do continue
+		lua.createtable(L, 0, 3)
+		push_string(L, spawn_kind_names[spawnpoint.kind])
+		lua.setfield(L, -2, "kind")
+		lua.pushnumber(L, lua.Number(spawnpoint.pos.x))
+		lua.setfield(L, -2, "x")
+		lua.pushnumber(L, lua.Number(spawnpoint.pos.y))
+		lua.setfield(L, -2, "y")
+		n += 1
+		lua.rawseti(L, -2, n)
+	}
+	return 1
+}
+
 @(private = "file")
 l_map :: proc "c" (L: ^lua.State) -> c.int {
 	s := script_of(L)
@@ -347,6 +490,45 @@ l_kick :: proc "c" (L: ^lua.State) -> c.int {
 		player_kick(s.server, id, reason)
 	}
 	return 0
+}
+
+// server.kill(slot): the soldier killed at the next tick, as an admin's pkill: true, or
+// false for nobody in `slot`, or one not alive.
+@(private = "file")
+l_kill :: proc "c" (L: ^lua.State) -> c.int {
+	s := script_of(L)
+	context = s.ctx
+	sv := s.server
+	slot := lua.L_checkinteger(L, 1)
+	alive := false
+	if slot_present(sv, slot) {
+		soldier := &sv.game.world.soldiers[slot]
+		alive = soldier.active && !soldier.vitals.dead && soldier.team != .Spectator
+	}
+	if alive do sv.suicides[slot] = false // a kill, not a brutal one
+	lua.pushboolean(L, b32(alive))
+	return 1
+}
+
+// server.set_spawn(slot [, x, y]): where the soldier is placed from now on, each time,
+// over its team's spawn points, until the round ends or it leaves; with no place, its
+// team's spawn points again. True, or false for nobody in `slot`.
+@(private = "file")
+l_set_spawn :: proc "c" (L: ^lua.State) -> c.int {
+	s := script_of(L)
+	context = s.ctx
+	sv := s.server
+	slot := lua.L_checkinteger(L, 1)
+	present := slot_present(sv, slot)
+	if present {
+		if lua.isnoneornil(L, 2) {
+			sv.game.world.spawns_set[slot] = nil
+		} else {
+			sv.game.world.spawns_set[slot] = utils.Vec2{f32(lua.L_checknumber(L, 2)), f32(lua.L_checknumber(L, 3))}
+		}
+	}
+	lua.pushboolean(L, b32(present))
+	return 1
 }
 
 // server.add_bot([team [, name]]): its slot, or nil.

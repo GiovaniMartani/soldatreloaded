@@ -43,8 +43,8 @@ recording :: proc(r: ^Recorder) -> bool {
 	return r.file != nil
 }
 
-// The round as the client has it, mid-way: the server's weapons, its Map, its vote, and
-// the snapshots in hand.
+// The round as the client has it, mid-way: the server's weapons, its Map, its vote, its
+// scripts' texts in the world, and the snapshots in hand.
 recorder_join :: proc(r: ^Recorder, n: ^online.Line) {
 	if r.file == nil do return
 	buf: [network.MTU]u8
@@ -52,11 +52,14 @@ recorder_join :: proc(r: ^Recorder, n: ^online.Line) {
 		m := network.Msg_Weapons{weapons = weapons}
 		recorder_packet(r, network.build(buf[:], .Weapons, network.msg_weapons, &m))
 	}
-	m := network.Msg_Map{round = n.round, map_name = n.map_name, hostname = n.hostname, limit = u16(clamp(n.limit, 0, i32(max(u16))))}
+	m := network.Msg_Map{round = n.round, map_name = n.map_name, hostname = n.hostname, limit = u16(clamp(n.limit, 0, i32(max(u16)))), grenades = u8(clamp(n.grenades, 0, 255)), guns_off = n.guns_off}
 	recorder_packet(r, network.build(buf[:], .Map, network.msg_map, &m))
 	if n.vote.kind != .None {
 		vote := n.vote
 		recorder_packet(r, network.build(buf[:], .Vote, network.msg_vote, &vote))
+	}
+	for place in network.Text_Place {
+		for &text in online.line_texts(n, place) do recorder_packet(r, network.build(buf[:], .Text, network.msg_text, &text))
 	}
 	recorder_frame(r) // the world made for the map before its snapshots come
 	join_snapshots(r, &n.stream)

@@ -95,6 +95,7 @@ script_open :: proc(s: ^Script, sv: ^Server, paths: ..string) -> bool {
 	lua.setfield(L, lua.REGISTRYINDEX, HANDLERS_KEY)
 	api_open(L)
 	http_open(L)
+	db_open(L)
 	if !run_chunk(s, JSON_PRELUDE, "json") || !run_chunk(s, HTTP_PRELUDE, "http") {
 		script_end(s)
 		return false

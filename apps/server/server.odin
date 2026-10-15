@@ -119,6 +119,7 @@ Server :: struct {
 	last_ban:    Maybe(Last_Ban),          // the ban made last, for unbanlast
 	chat_hold:   bool,                     // a script hears a player's line: the server's chat held until the line has gone (chat_release)
 	chat_held:   [dynamic]Held_Chat,       // and what it held, in order
+	texts:       [net.Text_Place][net.TEXT_LAYERS]Maybe(Kept_Text), // a script's texts shown to everyone, for whoever joins (texts.odin)
 }
 
 // Whom the last ban named: an address, a machine, or both.
@@ -204,6 +205,8 @@ settings_from :: proc(config: ^res.Server_Config, weapons: res.Weapon_Table) -> 
 	// the waves: no minimum is a wait for the wave alone; a maximum under it, none at all
 	s.respawn_min_wave = max(config.server.respawn_min_wave, 0) * game.TICK_RATE
 	s.respawn_max_wave = max(config.server.respawn_max_wave * game.TICK_RATE, s.respawn_min_wave)
+	s.max_grenades = clamp(config.server.max_grenades, 0, 5)
+	s.guns_off = res.guns_off(config.guns)
 	s.weapons = weapons
 	return s
 }

@@ -9,12 +9,14 @@ import "core:time/timezone"
 import rl "vendor:raylib"
 
 import sim "../../../core/game"
+import network "../../../core/network"
 import res "../../../core/resources"
 import "../../../core/utils"
 import "../demo"
 import "../draw"
 import "../hud"
 import "../input"
+import "../online"
 import "../sound"
 
 // The match's side of the HUD: what it is told of the world each frame (hud_data); the
@@ -36,6 +38,30 @@ Limbo :: struct {
 	was_dead:   bool,       // as of the tick before
 	died_at:    Maybe(u32), // the tick I died, while the menu waits to come up
 	team_asked: bool,       // the team menu shown since the join, which a new round keeps
+}
+
+// The line's texts at `place`, for the frame: a clock's time, from the tick it counts
+// from to the tick on show, after its text.
+@(private = "file")
+script_texts :: proc(match: ^Match, place: network.Text_Place) -> []hud.Script_Text {
+	shown := online.line_texts(match.line, place)
+	texts := make([]hud.Script_Text, len(shown), context.temp_allocator)
+	tick := match.game.world.tick
+	for &m, i in shown {
+		text := utils.short_string_text(&m.text)
+		if m.clock do text = fmt.tprintf("%s%s", text, clock_text(tick - m.clock_from if tick > m.clock_from else 0))
+		texts[i] = {text = text, pos = m.pos, color = rl.Color(m.color), scale = m.scale}
+	}
+	return texts
+}
+
+// `ticks` as a timer reads: seconds and thousandths, and the minutes before them once
+// there are any.
+@(private = "file")
+clock_text :: proc(ticks: u32) -> string {
+	ms := u64(ticks) * 1000 / sim.TICK_RATE
+	if ms >= 60_000 do return fmt.tprintf("%d:%02d.%03d", ms / 60_000, ms / 1000 % 60, ms % 1000)
+	return fmt.tprintf("%d.%03d", ms / 1000, ms % 1000)
 }
 
 // What the HUD shows of the world this frame.
@@ -109,6 +135,10 @@ hud_data :: proc(match: ^Match, config: ^res.Client_Config) -> (data: hud.Hud_Da
 			reason  = utils.short_string_text(&vote.reason),
 		}
 	}
+	if match.mode != .Offline {
+		data.world_texts = script_texts(match, .World)
+		data.screen_texts = script_texts(match, .Screen)
+	}
 	data.emotes = {open = match.emote_wheel.open, pointer = match.emote_wheel.pointer, pick = -1}
 	if pick, picked := hud.emote_pick(match.emote_wheel.pointer); picked do data.emotes.pick = pick
 	data.radio.open = match.radio.open
@@ -167,6 +197,7 @@ menus_follow :: proc(match: ^Match) {
 	menus.width = match.camera.view.x
 	for &soldier, i in match.game.world.soldiers do menus.players[i] = soldier.active
 	menus.me = match.me
+	menus.guns_off = match.game.settings.guns_off
 	if match.mode == .Online {
 		menus.map_count = int(match.line.map_reply.count)
 		menus.map_index = clamp(menus.map_index, 0, max(menus.map_count - 1, 0))
@@ -249,7 +280,7 @@ weapons_menu_key :: proc(match: ^Match) {
 }
 
 // After each tick: the weapons menu up at my first life and a second after I die, while
-// the round is played. Online, a spectator just joined is shown the team menu, once.
+// the round is played, unless the server gives no primary to pick. Online, a spectator just joined is shown the team menu, once.
 limbo_tick :: proc(match: ^Match) {
 	limbo := &match.limbo
 	menus := &match.hud.menus
@@ -275,11 +306,19 @@ limbo_tick :: proc(match: ^Match) {
 	died_at, dying := limbo.died_at.?
 	_, playing := match.game.round.phase.(sim.Playing)
 	due := first_life || (dying && world.tick - died_at >= sim.TICK_RATE)
-	if due && playing && !limbo.locked && menus.open & {.Weapons, .Escape} == {} {
+	if due && playing && !limbo.locked && menus.open & {.Weapons, .Escape} == {} && any_primary(match) {
 		weapons_show(match)
 		limbo.died_at = nil
 	}
 	limbo.was_dead = dead
+}
+
+// Whether the server gives any primary: none, and the weapons menu has nothing to offer
+// as I spawn, and isn't put up.
+@(private = "file")
+any_primary :: proc(match: ^Match) -> bool {
+	for weapon in res.Weapon.Desert_Eagles ..= res.Weapon.Minigun do if weapon not_in match.game.settings.guns_off do return true
+	return false
 }
 
 // The weapons menu up; with `close_on_weapons`, the radio shut as it comes. The radio

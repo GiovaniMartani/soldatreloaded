@@ -87,17 +87,19 @@ wave_time :: proc(world: ^World) -> i32 {
 	return max(time - world.rules.respawn_min_wave, 1)
 }
 
-// A new life on one of the team's spawn points, with the guns chosen.
+// A new life on one of the team's spawn points, with the guns chosen, of those on (a
+// bot's choice is its profile's, which the host never checked).
 @(private = "file")
 judge_respawn :: proc(world: ^World, resources: ^Resources, id: Soldier_Id, out: ^Tick_Output) {
 	soldier := &world.soldiers[id]
-	pos := spawn_point(world.polymap, soldier.team, &world.rng)
+	pos := soldier_spawn_point(world, id, soldier.team)
+	loadout := loadout_allowed(soldier.loadout, world.rules.guns_off)
 	respawn := Respawn {
 		target    = id,
 		life      = soldier.vitals.life + 1,
 		team      = soldier.team,
-		primary   = soldier.loadout.primary,
-		secondary = soldier.loadout.secondary,
+		primary   = loadout.primary,
+		secondary = loadout.secondary,
 		pos       = pos,
 	}
 	rule(world, resources, respawn, out)
