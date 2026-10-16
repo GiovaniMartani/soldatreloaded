@@ -27,6 +27,7 @@ package hud
 //   draw_scoreboard.odin  the scoreboard, my weapon stats, who won
 //   draw_minimap.odin     the minimap
 //   draw_names.odin       teammates' names, out of view or always
+//   draw_texts.odin       a server script's texts, in the world and on the screen
 //   draw_menus.odin       the menus
 //
 // Uses: ui, draw. From the C client: render/interface.c, ui/menus.c, ui/feed.c,
@@ -84,7 +85,9 @@ hud_draw :: proc(u: ^ui.Ui, hud: ^Hud, data: ^Hud_Data, minimap: ^draw.Minimap) 
 	typing := data.prompt.mode != .None
 	defer rl.EndBlendMode()
 
+	draw_world_texts(u, data) // of the world, under the rest
 	draw_big_message(u, feed)
+	draw_screen_texts(u, data)
 	if playing {
 		draw_bars(u, art, mine)
 		if !menus_any_open(menus) && !mine.dead && !data.ended do draw_crosshair(u, art, data) // gone as the round ends, as the original's

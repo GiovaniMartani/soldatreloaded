@@ -2,8 +2,9 @@ package online
 
 // The connection to a server: the join, the round's map (here, or fetched from the
 // server), the two streams, and what the server says reliably: chat, votes, the round's
-// end, the map window's answers, its weapons. What it hears of the world goes into the
-// game it is given; what it hears for the player is kept to be taken, once (line_take_*).
+// end, the map window's answers, its weapons, its scripts' texts. What it hears of the
+// world goes into the game it is given; what it hears for the player is kept to be taken,
+// once (line_take_*).
 // What becomes of the line it says in lines (Said), for the HUD's console and the menu.
 //
 // A demo plays through it too (line_play, line_feed): joined with no line, its packets
@@ -23,6 +24,7 @@ import "core:fmt"
 import "core:log"
 import "core:strconv"
 import "core:strings"
+import "core:time"
 
 import sim "../../../core/game"
 import network "../../../core/network"
@@ -52,6 +54,13 @@ Said :: struct {
 	kind: Said_Kind,
 }
 
+// A text a server's script shows, in the world or on the screen, on its layer (Msg_Text).
+Shown_Text :: struct {
+	m:     network.Msg_Text,
+	shown: bool,
+	until: time.Tick, // when it goes; none, while it lasts until replaced
+}
+
 Line :: struct {
 	link:        network.Link,
 	state:       State,
@@ -63,11 +72,14 @@ Line :: struct {
 	map_name:    network.Map_Name, // on which map
 	hostname:    network.Name, // the server's, as the Map said
 	limit:       i32, // the captures that win, as the Map said
+	grenades:    i32, // the grenades a soldier carries at most, as the Map said
+	guns_off:    res.Weapon_Set, // the guns the server gives nobody, as the Map said
 	map_dir:     string, // where the round's map was found: the data's, or the downloads'
 	mapped:      bool, // a Map not yet taken (line_take_map)
 	fetch:       Fetch, // the round's map, while it comes from the server
 	inbox:       sa.Small_Array(INBOX, network.Msg_Chat), // chat heard and not yet taken, oldest first
 	vote:        network.Msg_Vote, // the vote on, kind none for none
+	texts:       [network.Text_Place][network.TEXT_LAYERS]Shown_Text, // a script's texts, by place and layer
 	vote_seq:    u32, // votes begun, counted: a new one is told from the last
 	map_change:  Maybe(network.Msg_Map_Change), // the round's end, not yet taken
 	map_reply:   network.Msg_Map_Reply, // the server's answer to the map window's last question
@@ -113,6 +125,7 @@ line_connect :: proc(n: ^Line, address: string, hello: network.Msg_Hello) {
 	n.map_replied = false
 	n.weapons = nil // a new server says its own
 	n.vote = {}
+	n.texts = {}
 	sa.clear(&n.inbox)
 	utils.short_string_set(&n.address, fmt.tprintf("%s:%d", host, port))
 	say(n, .Plain, "Connecting to %s...", utils.short_string_text(&n.address))
@@ -140,14 +153,31 @@ line_disconnect :: proc(n: ^Line) {
 		n.playback = false
 		n.state = .Off
 		n.vote = {}
+		n.texts = {}
 		return
 	}
 	if n.link.host == nil do return
 	network.net_close(&n.link)
 	n.state = .Off
 	n.vote = {}
+	n.texts = {}
 	fetch_stop(&n.fetch)
 	say(n, .Plain, "Disconnected")
+}
+
+// The texts the server's scripts show at `place` now: those whose time is up are gone.
+line_texts :: proc(n: ^Line, place: network.Text_Place, allocator := context.temp_allocator) -> []network.Msg_Text {
+	now := time.tick_now()
+	shown := make([dynamic]network.Msg_Text, 0, 16, allocator)
+	for &text in n.texts[place] {
+		if !text.shown do continue
+		if text.until != {} && time.tick_diff(text.until, now) >= 0 {
+			text.shown = false
+			continue
+		}
+		append(&shown, text.m)
+	}
+	return shown[:]
 }
 
 // Welcomed: a slot mine, on a server or in a demo.
@@ -200,6 +230,7 @@ line_play :: proc(n: ^Line, slot: sim.Soldier_Id) {
 	n.map_replied = false
 	n.weapons = nil
 	n.vote = {}
+	n.texts = {}
 	n.vote_seq = 0
 	n.hostname = {}
 	sa.clear(&n.inbox)
@@ -357,6 +388,9 @@ heard :: proc(n: ^Line, game: ^sim.Game, data: []u8) {
 		n.map_name = m.map_name
 		n.hostname = m.hostname
 		n.limit = i32(m.limit)
+		n.grenades = i32(m.grenades)
+		n.guns_off = m.guns_off
+		n.texts = {} // the new world has none of the old's
 		network.client_stream_reset(&n.stream, m.round)
 		// the world is made of the map here, or of the server's once it has come, and its
 		// own art with it; a demo plays on whatever copy of its map is here
@@ -397,6 +431,13 @@ heard :: proc(n: ^Line, game: ^sim.Game, data: []u8) {
 		if !network.buffer_done(&b) do return
 		if m.kind != .None && (n.vote.kind == .None || n.vote.target != m.target) do n.vote_seq += 1
 		n.vote = m
+	case .Text:
+		m: network.Msg_Text
+		network.msg_text(&b, &m)
+		if !network.buffer_done(&b) do return
+		shown := m.text.length > 0 || m.clock
+		n.texts[m.place][m.layer] = {m = m, shown = shown}
+		if shown && m.seconds > 0 do n.texts[m.place][m.layer].until = time.tick_add(time.tick_now(), time.Duration(m.seconds) * time.Second)
 	case .Chat:
 		m: network.Msg_Chat
 		network.msg_chat(&b, &m)

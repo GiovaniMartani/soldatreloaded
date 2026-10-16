@@ -23,6 +23,7 @@ SERVER_CONFIG_HEADER :: `// Soldat Reloaded's server: how it hosts, the rotation
 
 Server_Config :: struct {
 	server:  Host_Settings,
+	guns:    Gun_Settings `jsoncomment:"the guns a soldier may carry: one off is greyed out in the weapons menu and never given; with no primary on everyone has the fists, and with no secondary on the fists are the secondary"`,
 	maps:    []string `jsoncomment:"the rotation, played in turn; none plays every map under data/maps, the map again each round"`,
 	bots:    Bot_Settings `jsoncomment:"the bots the server fills the game with"`,
 	network: Flood_Settings,
@@ -48,8 +49,43 @@ Host_Settings :: struct {
 	respawn_max_wave:   i32 `jsoncomment:"seconds a death waits at most, its wave and all; the waves come this minus respawn_min_wave apart"`,
 	aimbot_bots:        bool `jsoncomment:"the bots lead every shot as the game will fly it, at the head, the chest or the legs; false for the original's aim, a guess spread by each bot's accuracy"`,
 	aimbot_miss_chance: i32 `jsoncomment:"with aimbot_bots, the percent of shots a bot of typical accuracy throws wide on purpose; a sharper bot fewer, a sloppier more, by its profile and the difficulty; 0 none"`,
+	max_grenades:       i32 `jsoncomment:"the grenades a soldier carries at most, and is placed with, 0 to 5; 0 for none, and no grenade kits on the maps"`,
 	vote_percent:       i32 `jsoncomment:"the percentage of players whose yes passes a vote"`,
 	scripts:            string `jsoncomment:"the folder of Lua scripts the server runs: every .lua in it, in name order (docs/scripting.md); a .lua.disabled is passed over; none ship with the server, and examples are at https://github.com/soldatreloaded/soldatreloaded-scripts; empty for none"`,
+}
+
+Gun_Settings :: struct {
+	desert_eagles: bool,
+	mp5:           bool,
+	ak74:          bool,
+	steyr_aug:     bool,
+	spas12:        bool,
+	ruger77:       bool,
+	m79:           bool,
+	barrett:       bool,
+	minimi:        bool,
+	minigun:       bool,
+	ussocom:       bool,
+	knife:         bool,
+	chainsaw:      bool,
+	law:           bool,
+}
+
+ALL_GUNS :: Gun_Settings{true, true, true, true, true, true, true, true, true, true, true, true, true, true}
+
+// The guns the settings turn off.
+guns_off :: proc(g: Gun_Settings) -> (off: Weapon_Set) {
+	on := [?]struct {
+		weapon: Weapon,
+		on:     bool,
+	} {
+		{.Desert_Eagles, g.desert_eagles}, {.MP5, g.mp5}, {.AK74, g.ak74}, {.Steyr_AUG, g.steyr_aug},
+		{.Spas12, g.spas12}, {.Ruger77, g.ruger77}, {.M79, g.m79}, {.Barrett, g.barrett},
+		{.Minimi, g.minimi}, {.Minigun, g.minigun}, {.USSOCOM, g.ussocom}, {.Knife, g.knife},
+		{.Chainsaw, g.chainsaw}, {.LAW, g.law},
+	}
+	for gun in on do if !gun.on do off += {gun.weapon}
+	return
 }
 
 Bot_Settings :: struct {
@@ -104,10 +140,12 @@ DEFAULT_SERVER_CONFIG := Server_Config {
 		respawn_min_wave   = 2,
 		respawn_max_wave   = 4,
 		aimbot_miss_chance = 5,
+		max_grenades       = 2,
 		vote_percent       = 60,
 		rcon               = true,
 		scripts            = "scripts",
 	},
+	guns = ALL_GUNS,
 	bots = {difficulty = 100, chat = true},
 	network = {flooding_packets = 120, flood_warnings = 4},
 	lobby = {url = LOBBY_URL},

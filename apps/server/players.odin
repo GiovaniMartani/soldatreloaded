@@ -308,6 +308,7 @@ place :: proc(sv: ^Server, slot: game.Soldier_Id) {
 @(private = "file")
 soldier_leave :: proc(sv: ^Server, slot: game.Soldier_Id) {
 	soldier := &sv.game.world.soldiers[slot]
+	sv.game.world.spawns_set[slot] = nil // the slot's next player is placed as any other
 	if !soldier.active do return
 	if soldier.carrying.held != nil do game.things_ask(&sv.game.world, game.Let_Go{slot})
 	soldier.active = false

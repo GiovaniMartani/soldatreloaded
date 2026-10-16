@@ -112,7 +112,7 @@ server_stream_receive :: proc(s: ^Server_Stream, g: ^game.Game, slot: game.Soldi
 		if gun_held(s, soldier, &m.owned, g.world.tick) do soldier.arsenal.primary = primary // (Gun_Given)
 	}
 	soldier.player.typing = m.typing
-	soldier.loadout = game.loadout_allowed(m.owned.loadout)
+	soldier.loadout = game.loadout_allowed(m.owned.loadout, g.settings.guns_off)
 	return true
 }
 

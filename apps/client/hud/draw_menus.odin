@@ -52,6 +52,7 @@ WINDOW_CAPTIONS := #partial [Menu][Window_Button]string {
 @(private = "file") CAPTION_COLOR :: rl.Color{255, 255, 255, 230}
 @(private = "file") CHOSEN_COLOR :: rl.Color{55, 165, 55, 230}
 @(private = "file") CHOSEN_HOT_COLOR :: rl.Color{85, 105, 55, 230}
+@(private = "file") OFF_COLOR :: rl.Color{140, 140, 140, 120} // a gun the server gives nobody
 
 // The boxes behind the team and weapons menus, and the weapons' icons: drawn before the
 // HUD's texts, as the original's are.
@@ -82,10 +83,13 @@ draw_menus :: proc(u: ^ui.Ui, art: ^Art, menus: ^Menus, data: ^Hud_Data, dim: bo
 		buttons := menu_buttons(menus, .Weapons)
 		for b, i in sa.slice(&buttons) {
 			if !b.shown do continue
-			hover := hovered(.Weapons, hot_menu, i, hot)
+			off := res.Weapon(i + 1) in menus.guns_off
+			hover := !off && hovered(.Weapons, hot_menu, i, hot)
 			at := [2]f32{b.rect.x + 85, b.rect.y + b.rect.height / 2 - 2}
 			color := CAPTION_COLOR
-			if weapon_chosen(data, i) {
+			if off {
+				color = OFF_COLOR
+			} else if weapon_chosen(data, i) {
 				color = CHOSEN_HOT_COLOR if hover else CHOSEN_COLOR
 			} else if hover {
 				at += {1, -1}
