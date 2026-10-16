@@ -79,6 +79,7 @@ art_sprites_load :: proc(art: ^Art, mod: res.Mod) {
 }
 
 art_destroy :: proc(art: ^Art) {
+    poa_hair_destroy(&art.gostek.poa)
 	art_map_destroy(art)
 	atlas_destroy(&art.sprite_atlas)
 	art^ = {}

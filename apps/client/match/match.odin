@@ -397,6 +397,7 @@ tick :: proc(match: ^Match, config: ^res.Client_Config, sounds: ^sound.Sound) {
 @(private = "package")
 shown :: proc(match: ^Match, config: ^res.Client_Config, sounds: ^sound.Sound) {
 	game := match.game
+    draw.poa_hair_tick(&match.art, game, config.graphics.original_soldiers)
 	names := soldier_names(match)
 	match.hud.feed.console_length = int(config.interface.console_lines)
 	match.hud.feed.kill_length = int(config.interface.kill_log_length)

@@ -22,7 +22,7 @@ tables :: proc(t: ^testing.T) {
 	testing.expect(t, len(net.SOLDIER_SERVED_FIELDS) > 25, "the served half has its fields")
 	testing.expect_value(t, len(net.SOLDIER_LOADOUT_FIELDS), 2) // the primary and the secondary
 	testing.expect(t, len(net.THING_FIELDS) > 20, "a thing has its fields")
-	testing.expect_value(t, len(net.LOOK_FIELDS), 10) // the style, five colours, the hair, the headgear, the chain and the eyewear
+	testing.expect_value(t, len(net.LOOK_FIELDS), 11) // built-in look plus the native POA hair library selection
 	for f in net.SOLDIER_OWNED_FIELDS {
 		for g in net.SOLDIER_SERVED_FIELDS {
 			testing.expectf(t, f.name != g.name, "%s is in both halves", f.name)

@@ -47,7 +47,32 @@ page_player :: proc(menu: ^Menu) {
 	look := look_of(player)
 	look.gostek = ui.enum_select(k, "Style", &player.gostek, STYLE_NAMES[:])
 	furred := look.gostek == .Rat || look.gostek == .Furry
-	look.hair_style = ui.enum_select(k, "Hair", &player.hair_style, HAIR_NAMES[:], FURRED_HAIR_LOCKED[:] if furred else nil)
+	if !menu.previewed { // load native art and custom hair names before building the selector
+		draw.preview_load(&menu.preview, menu.mod)
+		menu.previewed = true
+	}
+	hair_names := make([dynamic]string, context.temp_allocator)
+	append(&hair_names, ..HAIR_NAMES[:])
+	for entry in menu.preview.gostek.poa.custom do append(&hair_names, entry.name)
+	current_hair := int(player.hair_style)
+	if player.hair_custom > 0 && int(player.hair_custom) <= len(menu.preview.gostek.poa.custom) {
+		current_hair = len(HAIR_NAMES) + int(player.hair_custom) - 1
+	}
+	preview_hair := current_hair
+	if picked := ui.select_box(k, "Hair", hair_names[:], nil, current_hair, &preview_hair); picked >= 0 {
+		if picked < len(HAIR_NAMES) {
+			player.hair_style = res.Hair_Style(picked)
+			player.hair_custom = 0
+		} else {
+			player.hair_custom = u8(picked - len(HAIR_NAMES) + 1)
+		}
+	}
+	if preview_hair < len(HAIR_NAMES) {
+		look.hair_style = res.Hair_Style(preview_hair)
+		look.hair_custom = 0
+	} else {
+		look.hair_custom = u8(preview_hair - len(HAIR_NAMES) + 1)
+	}
 	look.head_style = ui.enum_select(k, "Headgear", &player.head_style, HEAD_NAMES[:], FURRED_HEAD_LOCKED[:] if furred else nil)
 	look.eyewear = ui.enum_select(k, "Eyewear", &player.eyewear, EYEWEAR_NAMES[:])
 	look.chain_style = ui.enum_select(k, "Chain", &player.chain_style, CHAIN_NAMES[:])
@@ -82,10 +107,6 @@ page_player :: proc(menu: ^Menu) {
 		grenade_color = menu.config.graphics.grenade_color,
 	}
 	at := rl.Vector2{px + pw / 2 - 2 * scale, floor_y}
-	if !menu.previewed { // every style's art: loaded as the page is first shown, not with the menu
-		draw.preview_load(&menu.preview, menu.mod)
-		menu.previewed = true
-	}
 	draw.draw_preview(&menu.preview, dress, at * u.scale, scale * u.scale)
 	rlgl.DisableBackfaceCulling() // the menu's shapes again
 }
@@ -114,6 +135,7 @@ look_of :: proc(player: ^res.Player_Settings) -> sim.Look {
 		hair        = player.hair,
 		jet         = player.jet,
 		hair_style  = player.hair_style,
+		hair_custom = player.hair_custom,
 		head_style  = player.head_style,
 		chain_style = player.chain_style,
 		eyewear     = player.eyewear,

@@ -1,0 +1,45 @@
+{
+  "format": "poa-hair",
+  "version": 1,
+  "attachment": {
+    "point": 12,
+    "directionPoint": 9
+  },
+  "coordinateSystem": "poa-xz-head-local",
+  "simulation": {
+    "rate": 60,
+    "model": "verlet-strands-v1"
+  },
+  "hair": {
+    "version": 2,
+    "strands": [
+      {
+        "name": "Mecha",
+        "color": "#603f29",
+        "width": 1.5,
+        "rigidity": 0.3,
+        "damping": 0.4,
+        "gravity": 1,
+        "nodes": [
+          {
+            "x": 0,
+            "z": 0
+          },
+          {
+            "x": 0.2,
+            "z": 0.45
+          },
+          {
+            "x": 0.5,
+            "z": 0.65
+          },
+          {
+            "x": 0.85,
+            "z": 0.55
+          }
+        ],
+        "opacity": 1
+      }
+    ]
+  }
+}

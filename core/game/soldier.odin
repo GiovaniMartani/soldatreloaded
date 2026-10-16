@@ -215,6 +215,7 @@ Look :: struct {
 	hair:        utils.Rgba,
 	jet:         utils.Rgba,
 	hair_style:  res.Hair_Style,
+	hair_custom: u8,
 	head_style:  res.Head_Style,
 	chain_style: res.Chain_Style,
 	eyewear:     res.Eyewear,

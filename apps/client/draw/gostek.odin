@@ -28,6 +28,7 @@ import "../../../core/utils"
 // is wiped or it is taken off.
 
 Gostek_Art :: struct {
+    poa: Poa_Hair,
 	// by style, part, team (the second's image) and mirrored; a part every style wears
 	// the same (part_shared) is the male's alone
 	parts:   [res.Gostek][len(PARTS)][2][2]Sprite,
@@ -179,7 +180,7 @@ gostek_load :: proc(art: ^Gostek_Art, source: Source) {
 		for &part, i in PARTS {
 			if style != .Male && part_shared(part) do continue
 			for team in 0 ..< (2 if part.team else 1) {
-				for mirrored in 0 ..< (2 if part.flip else 1) {
+				for mirrored in 0 ..< (2 if part_uses_mirrored_asset(part) else 1) {
 					sprite := sprite_load(source, style_part_path(source, part, style, team == 1, mirrored == 1), flat = part.nade > 0)
 					art.parts[style][i][team][mirrored] = sprite
 					art.centers[style][i][team][mirrored] = anchor_of(source, sprite, part.id, part.center)
@@ -188,6 +189,7 @@ gostek_load :: proc(art: ^Gostek_Art, source: Source) {
 		}
 	}
 	weapons_load(source, art)
+    poa_hair_load(&art.poa, source)
 }
 
 // What a soldier wears and does as it is drawn, which says which parts show.
@@ -208,21 +210,33 @@ Outfit :: struct {
 // the art has them. `standing`, the round stands still: no jets burn, though held.
 // `original`, it is drawn as Soldat 1 draws every soldier, the male (as_original).
 @(private = "package")
-draw_gostek :: proc(art: ^Gostek_Art, soldier: ^sim.Soldier, figure: ^Figure, shirt: utils.Rgba, grenade_color: Maybe(utils.Rgba), standing := false, original := false) {
+draw_gostek :: proc(art: ^Gostek_Art, soldier: ^sim.Soldier, figure: ^Figure, shirt: utils.Rgba, grenade_color: Maybe(utils.Rgba), standing := false, original := false, hair_player: ^Poa_Hair_Player = nil, hair_alpha: f32 = 1) {
 	points := &figure.points
 	facing_left := soldier.body.direction != 1
 	team := 1 if soldier.team == .Bravo || soldier.team == .Delta else 0
 	outfit := outfit_of(soldier, figure.corpse, original)
 	if standing do outfit.jetting = false
 	style := outfit.look.gostek
+    custom_hair := outfit.look.hair_custom > 0 || art.poa.packages[outfit.look.hair_style] != nil
+    hair_dir := i32(-1 if facing_left else 1)
+    hair_opacity := part_color(.Hair, outfit.look, shirt, soldier).a
+    if custom_hair && outfit.hair_shown do poa_draw(&art.poa, outfit.look.hair_style, outfit.look.hair_custom, points, hair_dir, true, hair_opacity, hair_player, hair_alpha, outfit.look.hair)
 
 	draw_slung_weapon(art, soldier, points, facing_left) // across the back, behind the body
-
+    front_hair_drawn := false
 	for &part, i in PARTS {
+        // Mr. T remains visible with headgear, but the helmet still covers it.
+        if custom_hair && outfit.hair_shown && outfit.capped && !outfit.grabbed && part.head != .None && !front_hair_drawn {
+            poa_draw(&art.poa, outfit.look.hair_style, outfit.look.hair_custom, points, hair_dir, false, hair_opacity, hair_player, hair_alpha, outfit.look.hair)
+            front_hair_drawn = true
+        }
+        if custom_hair && part.hair != .Army do continue
 		if part.grip do draw_held_weapon(art, soldier, points, facing_left)
 		if !part_shown(part, outfit) do continue
 
-		mirrored := facing_left && part.flip
+		// Hair has one source image: reflect it at draw time so an install can omit
+		// hair12/hair22/etc. The hair's source anchor remains valid under that scale.
+		mirrored := facing_left && part_uses_mirrored_asset(part)
 		sprite := art.parts[.Male if part_shared(part) else style][i][team if part.team else 0][1 if mirrored else 0]
 		if sprite.image.texture.id == 0 do continue
 
@@ -236,7 +250,7 @@ draw_gostek :: proc(art: ^Gostek_Art, soldier: ^sim.Soldier, figure: ^Figure, sh
 			center.x = 1
 		}
 		scale := [2]f32{1, 1}
-		if facing_left && part.flip {
+		if facing_left && part_uses_mirrored_asset(part) {
 			center.y = 1 - anchor.y
 		} else if facing_left {
 			scale.y = -1
@@ -269,6 +283,7 @@ draw_gostek :: proc(art: ^Gostek_Art, soldier: ^sim.Soldier, figure: ^Figure, sh
 		}
 		draw_sprite(sprite, at, center * sprite.size, scale, angle, tint)
 	}
+    if custom_hair && outfit.hair_shown && !front_hair_drawn do poa_draw(&art.poa, outfit.look.hair_style, outfit.look.hair_custom, points, hair_dir, false, hair_opacity, hair_player, hair_alpha, outfit.look.hair)
 }
 
 @(private = "file")
@@ -296,9 +311,9 @@ outfit_of :: proc(soldier: ^sim.Soldier, corpse: bool, original: bool) -> (outfi
 // the wolfcut, the baldcut, the afro, the emo) his normal hair, the waifu's headgear his
 // helmet, the backwards cap his hat, and no eyewear. A mod made for Soldat 1 dresses
 // every soldier then.
-@(private = "file")
 as_original :: proc(look: sim.Look) -> sim.Look {
 	look := look
+	look.hair_custom = 0
 	look.gostek = .Male
 	#partial switch look.hair_style {
 	case .Fringe, .Bob, .Mullet, .Wolfcut, .Baldcut, .Afro, .Emo: look.hair_style = .Normal
@@ -380,6 +395,13 @@ part_color :: proc(color: Part_Color, look: sim.Look, shirt: utils.Rgba, soldier
 @(private = "file")
 part_shared :: proc(part: Part) -> bool {
 	return part.dir != "" || part.hair != .Army || part.head != .None || part.eyewear != .None
+}
+
+// Hair uses the same source art facing either way; every other flipped part may load
+// its separately authored `<file>2` image.
+@(private = "file")
+part_uses_mirrored_asset :: proc(part: Part) -> bool {
+	return part.flip && part.color != .Hair
 }
 
 // Where a part's image is, as the original keeps it (gfx.inc): the male's, the hair and

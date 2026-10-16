@@ -177,6 +177,7 @@ look_of :: proc(config: ^res.Client_Config) -> sim.Look {
 		hair        = player.hair,
 		jet         = player.jet,
 		hair_style  = player.hair_style,
+		hair_custom = player.hair_custom,
 		head_style  = player.head_style,
 		chain_style = player.chain_style,
 		eyewear     = player.eyewear,

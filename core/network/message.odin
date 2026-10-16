@@ -10,7 +10,7 @@ import "../utils"
 // sent over and over, unreliably, a lost one replaced by the next; news goes once, in
 // order. The two streams' messages are stream.odin's.
 
-VERSION :: 12 // of the wire: a client of another can't join
+VERSION :: 13 // of the wire: adds the selected native POA hair library entry
 DEFAULT_PORT :: 23073
 
 Name :: utils.Short_String(24)     // a player's

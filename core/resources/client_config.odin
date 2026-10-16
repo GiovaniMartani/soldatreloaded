@@ -50,6 +50,7 @@ Player_Settings :: struct {
 	hair:             utils.Rgba `jsoncomment:"the hair's colour, RRGGBB"`,
 	jet:              utils.Rgba `jsoncomment:"the jet flame's colour, RRGGBB"`,
 	hair_style:       Hair_Style `jsoncomment:"army; the male's dreadlocks, punk, mr_t or normal; the waifu's fringe or bob; mullet, wolfcut, baldcut, afro or emo. The rat and the furry wear only army, dreadlocks, punk, mr_t, mullet or wolfcut."`,
+	hair_custom:      u8 `jsoncomment:"0 for a built-in hairstyle; otherwise the custom hair number shown in the Player page, loaded from gostek-gfx/poa-hair"`,
 	head_style:       Head_Style `jsoncomment:"none; the male's helmet or hat; the waifu's own; or backwards_cap. The rat and the furry wear none."`,
 	eyewear:          Eyewear `jsoncomment:"none or sunglasses"`,
 	chain_style:      Chain_Style `jsoncomment:"none, dog_tags or gold_chain"`,

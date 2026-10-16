@@ -12,6 +12,8 @@ draw_soldiers :: proc(art: ^Art, game: ^sim.Game, frame: ^Frame, grenade_color: 
 	standing := sim.round_standing(&game.round) // the round standing, no jets burn, though their buttons stay held
 	for &soldier, id in game.world.soldiers {
 		if !soldier.active || soldier.team == .Spectator do continue
-		draw_gostek(&art.gostek, &soldier, &frame.figures[id], shirt_worn(&soldier), grenade_color, standing, original)
+        hair_player: ^Poa_Hair_Player
+        if id < len(art.gostek.poa.players) do hair_player = &art.gostek.poa.players[id]
+		draw_gostek(&art.gostek, &soldier, &frame.figures[id], shirt_worn(&soldier), grenade_color, standing, original, hair_player, frame.alpha)
 	}
 }

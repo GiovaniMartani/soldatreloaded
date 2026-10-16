@@ -43,7 +43,7 @@ import sim "../../../core/game"
 import network "../../../core/network"
 import "../../../core/utils"
 
-VERSION :: 1
+VERSION :: 2 // Look gained the native POA hair selection
 DEMOS_DIR :: "demos"
 EXTENSION :: ".srdm"
 RECORD_MAX :: 65535 // bytes in a record

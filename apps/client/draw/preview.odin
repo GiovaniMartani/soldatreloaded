@@ -35,6 +35,7 @@ preview_load :: proc(preview: ^Preview, mod: res.Mod) {
 }
 
 preview_destroy :: proc(preview: ^Preview) {
+    poa_hair_destroy(&preview.gostek.poa)
 	atlas_destroy(&preview.atlas)
 	free(preview.animations)
 	res.skeleton_destroy(&preview.skeleton)
@@ -44,13 +45,13 @@ preview_destroy :: proc(preview: ^Preview) {
 // The soldier standing with its feet at `at`, in window pixels, `scale` window pixels
 // to a world unit: facing right, aiming a little up, at full health with one grenade
 // on its belt and its headgear on, as the C menu stands it.
-draw_preview :: proc(preview: ^Preview, dress: Dress, at: [2]f32, scale: f32) {
+draw_preview :: proc(preview: ^Preview, dress: Dress, at: [2]f32, scale: f32, facing_left := false) {
 	if preview.animations == nil do return
 	soldier := sim.Soldier {
 		active = true,
 		team = .None,
-		body = {direction = 1},
-		controls = {aim = {60, -12}},
+		body = {direction = -1 if facing_left else 1},
+		controls = {aim = {-60, -12} if facing_left else {60, -12}},
 		pose = {legs = {id = .Stand, frame = 1}, body = {id = .Stand, frame = 1}},
 		arsenal = {primary = {weapon = dress.primary}, secondary = {weapon = dress.secondary}, grenades = 1},
 		antics = {helmet = 1}, // on the head, so the chosen headgear shows
