@@ -47,7 +47,7 @@ snapshot_take :: proc(snapshot: ^Snapshot, world: ^sim.World) {
 // stands (paused, or over) the world is drawn as its latest tick, as the original's
 // InterpolateState does when paused: the bullets and the things keep the last positions
 // of the step that froze, which would otherwise be run through again every tick.
-frame_build :: proc(frame: ^Frame, before: ^Snapshot, game: ^sim.Game, alpha: f32, offsets: ^[sim.MAX_PLAYERS]utils.Vec2 = nil) {
+frame_build :: proc(frame: ^Frame, before: ^Snapshot, game: ^sim.Game, alpha: f32, offsets: ^[sim.MAX_PLAYERS]utils.Vec2 = nil, art: ^Art = nil) {
 	frame.tick_alpha = clamp(alpha, 0, 1)
 	frame.alpha = 1 if sim.round_standing(&game.round) else frame.tick_alpha
 	world := &game.world
@@ -58,6 +58,7 @@ frame_build :: proc(frame: ^Frame, before: ^Snapshot, game: ^sim.Game, alpha: f3
 			&before.corpses[id], &world.corpses[id],
 			frame.alpha,
 			offsets[id] if offsets != nil else {},
+			art, world.tick, id,
 		)
 	}
 }
@@ -73,7 +74,7 @@ between :: proc(a, b: utils.Vec2, t: f32) -> utils.Vec2 {
 // journey, and the step from living to dead shows the latest tick's alone. A dead
 // soldier is its corpse once that has started; until then it holds its last pose.
 @(private = "file")
-figure_between :: proc(animations: ^res.Animations, from, to: ^sim.Soldier, corpse_from, corpse_to: ^sim.Corpse, alpha: f32, offset: utils.Vec2) -> (figure: Figure) {
+figure_between :: proc(animations: ^res.Animations, from, to: ^sim.Soldier, corpse_from, corpse_to: ^sim.Corpse, alpha: f32, offset: utils.Vec2, art: ^Art, tick: u32, id: int) -> (figure: Figure) {
 	if !to.active do return
 	continuous := from.active && from.vitals.life == to.vitals.life
 	figure.pos = (between(from.body.pos, to.body.pos, alpha) if continuous else to.body.pos) + offset
@@ -86,9 +87,12 @@ figure_between :: proc(animations: ^res.Animations, from, to: ^sim.Soldier, corp
 		return
 	}
 
-	joints := sim.soldier_pose(animations, to, figure.pos)
+	base := sim.soldier_pose(animations, to, figure.pos)
+	joints := visual_soldier_pose(animations, art.air_animations, to, figure.pos, tick, &art.air_transitions[id], &art.air_tuning)
 	if continuous && from.vitals.dead == to.vitals.dead {
-		last := sim.soldier_pose(animations, from, figure.pos)
+		last := visual_soldier_pose(animations, art.air_animations, from, figure.pos, tick-1 if tick>0 else 0, &art.air_transitions[id], &art.air_tuning)
+		last_base := sim.soldier_pose(animations, from, figure.pos)
+		for &point, i in base do point = between(last_base[i], point, alpha)
 		for &joint, i in joints {
 			joint = between(last[i], joint, alpha)
 		}
@@ -97,6 +101,7 @@ figure_between :: proc(animations: ^res.Animations, from, to: ^sim.Soldier, corp
 	for k in 0 ..< len(to.pose.swing) {
 		swing := between(from.pose.swing[k], to.pose.swing[k], alpha) if continuous else to.pose.swing[k]
 		figure.points[len(joints) + k] = swing + offset
+		figure.points[len(joints) + k] += joints[8]-base[8]
 	}
 	return
 }

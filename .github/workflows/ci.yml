@@ -37,7 +37,7 @@ jobs:
       # tests/compare is left out: it needs the C game and a C toolchain (docs/porting.md).
       - name: test
         run: |
-          for suite in bots configs launcher lists lobby mods network script; do
+          for suite in air-animation bots configs launcher lists lobby mods network script; do
             odin test tests/$suite $ODIN_FLAGS
           done
           odin test tests/server -define:ODIN_TEST_THREADS=1 $ODIN_FLAGS # real sockets, one at a time

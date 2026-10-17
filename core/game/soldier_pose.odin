@@ -12,11 +12,13 @@ import "../utils"
 Joints :: [res.MAX_ANIMATION_POINTS]utils.Vec2
 
 // The joints of a living soldier standing at `pos`: its own, or where it is drawn.
-soldier_pose :: proc(animations: ^res.Animations, soldier: ^Soldier, pos: utils.Vec2) -> (joints: Joints) {
+soldier_pose :: proc(animations: ^res.Animations, soldier: ^Soldier, pos: utils.Vec2, visual_legs: ^res.Animation_Frame = nil, visual_body: ^res.Animation_Frame = nil) -> (joints: Joints) {
 	dir := f32(soldier.body.direction)
 	legs_anim, body_anim := soldier.pose.legs, soldier.pose.body
 	legs := res.animation_frame(&animations[legs_anim.id], legs_anim.frame)
 	body := res.animation_frame(&animations[body_anim.id], body_anim.frame)
+	if visual_legs != nil do legs = visual_legs
+	if visual_body != nil do body = visual_body
 
 	body_y: f32
 	switch soldier.controls.stance {
@@ -30,6 +32,7 @@ soldier_pose :: proc(animations: ^res.Animations, soldier: ^Soldier, pos: utils.
 		if body_anim.id == .Prone_Move do body_y = 0
 	}
 	if body_anim.id == .Get_Up do body_y = 8 if body_anim.frame > 18 else 4
+	if visual_body != nil do body_y = -body[5].y
 
 	for i in 0 ..< len(joints) {
 		if is_leg_point(i) do joints[i] = pos + utils.Vec2{dir * legs[i].x, legs[i].y}

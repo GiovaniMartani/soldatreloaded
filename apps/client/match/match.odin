@@ -262,7 +262,7 @@ match_update :: proc(match: ^Match, config: ^res.Client_Config, sounds: ^sound.S
 		online.line_smooth(match.line, dt, f32(config.network.smooth) / 1000)
 		offsets = &stream.blend
 	}
-	draw.frame_build(&match.frame, &match.before, match.game, alpha, offsets)
+	draw.frame_build(&match.frame, &match.before, match.game, alpha, offsets, &match.art)
 	match.seen = draw.camera_between(match.camera, alpha)
 	if match.request == nil && match.settings { // after the ticks, which the settings don't stop
 		match.settings = false
@@ -306,6 +306,7 @@ match_draw :: proc(match: ^Match, u: ^ui.Ui, config: ^res.Client_Config) {
 // What every match has, whatever plays it: the sparks, the HUD.
 @(private = "file")
 match_open :: proc(match: ^Match) {
+	match.art.air_tuning = res.AIR_TUNING
 	draw.sparks_init(&match.sparks)
 	hud.hud_init(&match.hud, match.mod)
 	match.zone, _ = timezone.region_load("local")
@@ -397,6 +398,7 @@ tick :: proc(match: ^Match, config: ^res.Client_Config, sounds: ^sound.Sound) {
 @(private = "package")
 shown :: proc(match: ^Match, config: ^res.Client_Config, sounds: ^sound.Sound) {
 	game := match.game
+	for &soldier, id in game.world.soldiers do draw.air_transition_step(&match.art.air_transitions[id], &soldier, match.art.air_tuning, 1.0/60, &match.before.soldiers[id], game.resources.animations)
 	names := soldier_names(match)
 	match.hud.feed.console_length = int(config.interface.console_lines)
 	match.hud.feed.kill_length = int(config.interface.kill_log_length)

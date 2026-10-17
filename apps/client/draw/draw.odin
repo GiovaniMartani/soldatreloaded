@@ -30,6 +30,9 @@ Art :: struct {
 	scenery_atlas: Atlas,         // the scenery's images
 	sprite_atlas:  Atlas,         // every sprite's image
 	gostek:        Gostek_Art,
+	air_animations: ^res.Air_Animations,
+	air_tuning: res.Air_Tuning,
+	air_transitions: [sim.MAX_PLAYERS]Air_Transition,
 	bullets:       Bullet_Art,
 	things:        Thing_Art,
 	sparks:        Spark_Art,
@@ -69,6 +72,8 @@ art_map_load :: proc(art: ^Art, mod: res.Mod, polymap: ^res.Poly_Map, map_dirs: 
 // The sprites, the mod's whatever the map: the soldiers', the bullets', the things' and
 // the sparks', into one atlas.
 art_sprites_load :: proc(art: ^Art, mod: res.Mod) {
+	free(art.air_animations)
+	art.air_animations = res.air_animations_load(sim.DATA_DIR)
 	art.sprite_atlas = {side = ATLAS_SIDE}
 	source := Source{mod, &art.sprite_atlas, source_listings()}
 	gostek_load(&art.gostek, source)
@@ -79,6 +84,7 @@ art_sprites_load :: proc(art: ^Art, mod: res.Mod) {
 }
 
 art_destroy :: proc(art: ^Art) {
+	free(art.air_animations)
 	art_map_destroy(art)
 	atlas_destroy(&art.sprite_atlas)
 	art^ = {}
