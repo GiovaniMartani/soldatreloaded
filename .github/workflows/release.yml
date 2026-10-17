@@ -20,11 +20,12 @@ jobs:
     name: package (${{ matrix.app }}, ${{ matrix.os }})
     needs: test
     strategy:
-      matrix: # the game for players on Windows and Linux; the server for hosts, on Linux
+      matrix: # the game for players on Windows and Linux; the server for hosts, on Linux, x64 and arm64
         include:
           - { app: client, os: windows-latest }
           - { app: client, os: ubuntu-latest }
           - { app: server, os: ubuntu-latest }
+          - { app: server, os: ubuntu-24.04-arm }
     runs-on: ${{ matrix.os }}
     defaults:
       run:

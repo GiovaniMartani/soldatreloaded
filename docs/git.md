@@ -114,19 +114,21 @@ no version, so the newest release's are always at the same addresses
 | `soldatreloaded-linux.zip` | `soldatreloaded`, `soldatreloaded-launcher`, `data/`, `mods/classic/`, `manifest.json` |
 | `manifest.windows.json`, `manifest.linux.json` | every file of the game's install on that platform (below) |
 | `soldatreloaded-server.zip` | `soldatreloaded-server`, `data/`, `server.config.mjson`, `weapons.ini`, for Linux |
+| `soldatreloaded-server-linux-arm64.zip` | the same, for arm64 Linux (a Raspberry Pi 4 or 5 on a 64-bit OS, an arm cloud machine) |
 
 Each holds `license.md` and `version.txt` too. Players start the launcher, which brings
 the install up to the newest release and starts the game. The server draws nothing, so
 it carries no mods; nor any scripts, a host adding their own to `scripts/` (examples at
 [soldatreloaded-scripts](https://github.com/soldatreloaded/soldatreloaded-scripts)). The
-game is released for Windows and Linux; the server, for those who host, for Linux alone, and
+game is released for Windows and Linux; the server, for those who host, for Linux alone (x64
+and arm64, the arm64 one built on GitHub's arm runner), and
 with no manifest: a host updates it by hand. A server runs on Windows built from the
 source, as it is developed.
 
 A player installs nothing: each program carries its libraries inside it, and asks the
 system only for what every machine has (the C library; on Linux, X11 and OpenGL). The
 setup action builds what Odin doesn't have as a static library from pinned sources
-(ENet, and curl on mbedTLS, for Linux), and the package action fails a release whose
+(ENet, curl on mbedTLS and SQLite for Linux, and Lua too for arm64), and the package action fails a release whose
 programs would look for any of them, or for the Visual C++ runtime, on a player's
 machine.
 

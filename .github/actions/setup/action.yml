@@ -8,6 +8,7 @@ description: >
 # everything the game and the launcher link (raylib, curl), on Linux raylib and Lua. What
 # Linux lacks is built here from pinned sources, checked against their published hashes,
 # and cached: ENet for the server, and curl on mbedTLS for the server and the launcher.
+# On Linux arm64, where the server alone is built, Lua too: Odin's is for amd64 alone.
 # SQLite, the scripts' databases (apps/server/db.odin), is built on both, from its
 # amalgamation: on Linux with the rest, on Windows as sqlite3.lib on the linker's path.
 #
@@ -125,6 +126,8 @@ runs:
           echo "MBEDTLS_SHA256=a7e8bcbec0e6f761b4af24f25677626b35f762f68eef79c08677a363212d11f6"
           echo "CURL_VERSION=8.22.0"
           echo "CURL_SHA256=d54dd598bf05927a726deb38df31c6a255ba83ff1de57c5d1464dac3ed8f44a1"
+          echo "LUA_VERSION=5.4.9"
+          echo "LUA_SHA256=2335b6c582a52654f94612bf10d2f4672805d05329aa6568b1d8cd9e5c6fb8e6"
           echo "STATIC_LIBS=$HOME/static-libs"
         } >> "$GITHUB_ENV"
 
@@ -134,7 +137,7 @@ runs:
       uses: actions/cache@v5
       with:
         path: ~/static-libs
-        key: static-libs-${{ runner.os }}-enet${{ env.ENET_TAG }}-mbedtls${{ env.MBEDTLS_VERSION }}-curl${{ env.CURL_VERSION }}-sqlite${{ env.SQLITE_VERSION }}
+        key: static-libs-${{ runner.os }}-${{ runner.arch }}-enet${{ env.ENET_TAG }}-mbedtls${{ env.MBEDTLS_VERSION }}-curl${{ env.CURL_VERSION }}-sqlite${{ env.SQLITE_VERSION }}-lua${{ env.LUA_VERSION }}
 
     - name: packages
       if: runner.os == 'Linux'
@@ -186,6 +189,16 @@ runs:
         gcc -c -O2 -fPIC -DSQLITE_THREADSAFE=1 -DSQLITE_OMIT_LOAD_EXTENSION \
           "sqlite-amalgamation-$SQLITE_VERSION/sqlite3.c" -o sqlite3.o
         ar rcs "$STATIC_LIBS/lib/libsqlite3.a" sqlite3.o
+
+        # Lua for arm64, where Odin's bindings ask the system for lua5.4: the library
+        # alone, under that name.
+        if [ "$RUNNER_ARCH" = ARM64 ]; then
+          curl -fsSL "https://www.lua.org/ftp/lua-$LUA_VERSION.tar.gz" -o lua.tar.gz
+          echo "$LUA_SHA256  lua.tar.gz" | sha256sum -c -
+          tar -xzf lua.tar.gz
+          make -C "lua-$LUA_VERSION/src" liblua.a SYSCFLAGS=-DLUA_USE_LINUX MYCFLAGS="-O2 -fPIC"
+          cp "lua-$LUA_VERSION/src/liblua.a" "$STATIC_LIBS/lib/liblua5.4.a"
+        fi
 
     - name: link the static libraries
       if: runner.os == 'Linux'

@@ -13,6 +13,8 @@ description: >
 #   soldatreloaded-<platform>.zip        what a player downloads
 #   manifest.<platform>.json             every file in it, by hash, for the launcher
 #   soldatreloaded-server.zip            the server, for Linux alone
+#   soldatreloaded-server-linux-arm64.zip  the same for arm64 Linux (a Raspberry Pi, an
+#                                        arm cloud machine)
 #
 # The game's install holds its manifest too, as manifest.json, so the launcher knows
 # what release it was last brought up to. The server has none: hosts update it by hand.
@@ -48,6 +50,14 @@ runs:
         esac
         if [ "$APP" = server ] && [ "$platform" != linux ]; then
           echo "::error::the server is released for Linux alone"; exit 1
+        fi
+        # arm64 has the server alone, under a name of its own; x64 keeps the plain one,
+        # which the hosted servers' image fetches.
+        if [ "$RUNNER_ARCH" = ARM64 ]; then
+          if [ "$APP" != server ] || [ "$platform" != linux ]; then
+            echo "::error::arm64 has the server on Linux alone"; exit 1
+          fi
+          name="soldatreloaded-server-linux-arm64"
         fi
         dist=build/dist
         stage="$dist/$name"
