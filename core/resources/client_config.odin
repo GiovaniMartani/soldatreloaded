@@ -122,6 +122,7 @@ Graphics_Settings :: struct {
 	forced_sky_bottom: utils.Rgba `jsoncomment:"the forced sky's colour at the bottom, RRGGBB"`,
 	grenade_color:     Maybe(utils.Rgba) `jsoncomment:"the grenades in this colour, RRGGBB, flat and solid; empty for their own art"`,
 	original_soldiers: bool `jsoncomment:"every soldier drawn as Soldat 1's, the male, whatever style its player picked (the female, rat, furry or waifu), a waifu's hair and headgear as his nearest: so a mod made for Soldat 1 looks the same on everyone"`,
+	legacy_animations: bool `jsoncomment:"draw the original Soldat animations instead of optional airborne POA blends"`,
 	hitboxes:          bool `jsoncomment:"each soldier's hit circles drawn over it, the ones that decide whether a shot hits: green the legs', yellow the chest's, red the head's, as the original counts them; the dashed ring a grenade's, a pixel wider"`,
 	crosshair_color:   utils.Rgba `jsoncomment:"the aiming crosshair's colour, RRGGBB"`,
 	crosshair_size:    i32 `jsoncomment:"the aiming crosshair's size, percent"`,

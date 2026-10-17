@@ -1,6 +1,6 @@
 # Velocity-driven airborne animation
 
-The client layers optional POA poses over airborne Jump, Jump_Side, Fall, Run and Run_Back states. Horizontal air steering without jets preserves the original airborne Run/Run_Back pose. It preserves the original movement state machines, collision poses, weapon timing, network animation IDs and demo format. The rendered legs and idle/aiming upper body use the new poses; reload, recoil, throwing and other authored upper-body actions retain their original animation. Aim is applied after pose composition. Prone, crouch, rolls, grounded and dead soldiers use the original pose.
+The client layers optional POA poses over airborne Jump, Jump_Side, Fall, Run and Run_Back states. Horizontal air steering without jets preserves the original airborne Run/Run_Back pose. It preserves the original movement state machines, collision poses, weapon timing, network animation IDs and demo format. The rendered legs and idle/aiming upper body use the new poses. In every living movement state, standard recoil clips drive a short local impulse on elbows and hands over the current pose; shoulders, torso, neck and head stay in that pose. Crouched recoil uses the same aiming frame that the game returns to after firing. Prone shots use a smaller impulse triggered by the shot because the game usually does not select a recoil clip there. Reload, throwing and other authored upper-body actions retain their original animation. Aim is applied after pose composition. The airborne blend does not replace prone, crouch, rolls, grounded or dead soldiers' movement pose.
 
 ## Clips
 
@@ -10,11 +10,11 @@ Place these files in `assets/data/anims/` in the source tree, or `data/anims/` b
 | --- | --- |
 | `Jet_Rise.poa` | `Jump_Rise.poa` |
 | | `Jump_Anticipation.poa` |
-| `Jet_Backward.poa` | `Jump_Hover.poa` |
-| `Jet_Forward.poa` | `Jump_Fall.poa` |
+| `Jet_Backward_0.poa`, `Jet_Backward_1.poa` | `Jump_Hover.poa` |
+| `Jet_Forward_0.poa`, `Jet_Forward_1.poa` | `Jump_Fall.poa` |
 | `Jet_Fall.poa` | |
 
-With horizontal input, `Jet_Forward_0.poa` / `Jet_Backward_0.poa` are the intent poses and `Jet_Forward_1.poa` / `Jet_Backward_1.poa` are the full-speed poses. All four are included. For the supplied assets, `Jet_Forward.poa` was copied as `Jet_Forward_0.poa`, and `Jet_Backward.poa` as `Jet_Backward_1.poa`; the other two supplied files already had their final names. Older unsuffixed clips remain available for coasting and as fallback when a new clip is missing.
+The `_0` clips are the intent poses and the `_1` clips are the full-speed poses. All four are included. When directional input is released, remaining horizontal velocity continues to blend this same pair; the unsuffixed Jet Forward/Backward files are unused.
 
 The jet clips have 60 frames each. Jump Anticipation has 9 frames; Jump Rise, Hover and Fall have 16, 21 and 7 respectively. The first nine frames of the internal Jump state display Jump Anticipation while its existing movement timing remains intact. With horizontal steering or active jets, the usual running/jetting rules take priority. Missing anticipation art falls back to the original Jump pose. A missing or invalid airborne clip preserves its weighted contribution from the original animation. Files must contain all 20 points in each frame, terminate with ENDFILE and have at most 240 frames. They load when match art loads; restart the game after replacing them.
 

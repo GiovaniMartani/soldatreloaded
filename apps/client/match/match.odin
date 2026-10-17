@@ -262,7 +262,7 @@ match_update :: proc(match: ^Match, config: ^res.Client_Config, sounds: ^sound.S
 		online.line_smooth(match.line, dt, f32(config.network.smooth) / 1000)
 		offsets = &stream.blend
 	}
-	draw.frame_build(&match.frame, &match.before, match.game, alpha, offsets, &match.art)
+	draw.frame_build(&match.frame, &match.before, match.game, alpha, offsets, &match.art, config.graphics.legacy_animations)
 	match.seen = draw.camera_between(match.camera, alpha)
 	if match.request == nil && match.settings { // after the ticks, which the settings don't stop
 		match.settings = false

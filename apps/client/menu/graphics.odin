@@ -82,6 +82,7 @@ page_graphics :: proc(menu: ^Menu) {
 	ui.toggle(k, "Weather", &graphics.weather)
 	ui.toggle(k, "Bullet trails", &graphics.trails)
 	ui.toggle(k, "Show all players as the classic soldier", &graphics.original_soldiers) // every style drawn as the male
+	ui.toggle(k, "Legacy Animations", &graphics.legacy_animations)
 	ui.toggle(k, "Render smooth polygons", &graphics.smooth_polygons) // no edge texture along their outsides
 	ui.toggle(k, "Show hitboxes", &graphics.hitboxes) // the circles that decide whether a shot hits
 	ui.section(k, "SKY")

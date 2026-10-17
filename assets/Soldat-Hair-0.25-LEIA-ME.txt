@@ -1,0 +1,5 @@
+Soldat Hair 0.25 — física configurável
+
+Atualize o executável soldat-poa.exe na pasta do jogo. Esta versão lê dois parâmetros opcionais por mecha: weight (0.1–3, padrão 1) multiplica a gravidade; elasticity (0–1, padrão 0) aumenta a força elástica de retorno à pose de repouso.
+
+Cabelos exportados antes continuam funcionando com os padrões acima. Instale o JSON e os PNGs na raiz gostek-gfx/poa-hair/ ou em mods/classic/gostek-gfx/poa-hair/. Depois reinicie o jogo e escolha o cabelo em Player > Hair.

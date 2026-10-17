@@ -1,5 +1,6 @@
 package draw
 
+import "core:math"
 import sim "../../../core/game"
 import res "../../../core/resources"
 import "../../../core/utils"
@@ -13,6 +14,7 @@ Air_Transition :: struct {
     ready: bool,
     legacy_legs, legacy_body: res.Animation_Frame,
     legacy_source: bool,
+    prone_recoil: f32,
 }
 
 air_mode :: proc(soldier: ^sim.Soldier) -> i32 {
@@ -30,9 +32,12 @@ air_mode :: proc(soldier: ^sim.Soldier) -> i32 {
 }
 
 air_transition_step :: proc(state: ^Air_Transition, soldier: ^sim.Soldier, tune: res.Air_Tuning, dt: f32, previous: ^sim.Soldier = nil, animations: ^res.Animations = nil) {
+    if !soldier.active || soldier.vitals.dead { state^ = {}; return }
+    prone_recoil := state.prone_recoil*0.72
+    if soldier.controls.stance == .Prone && soldier.arsenal.fired do prone_recoil = min(0.45,prone_recoil+0.35)
     mode := air_mode(soldier)
     if mode == 0 {
-        state^ = {}
+        state^ = {prone_recoil=prone_recoil}
         return
     }
     intent: i32
@@ -41,9 +46,10 @@ air_transition_step :: proc(state: ^Air_Transition, soldier: ^sim.Soldier, tune:
     target: res.Air_Weights
     if mode != 5 do target = res.air_weights_tuned(soldier.body.velocity, i32(soldier.body.direction), mode != 1, intent, tune)
     if !state.ready || state.life != soldier.vitals.life {
-        state^ = {current=target,mode=mode,life=soldier.vitals.life,ready=true}
+        state^ = {current=target,mode=mode,life=soldier.vitals.life,ready=true,prone_recoil=prone_recoil}
         return
     }
+    state.prone_recoil = prone_recoil
     if mode != state.mode {
         old_mode := state.mode
         state.from = state.current
@@ -65,7 +71,50 @@ air_transition_step :: proc(state: ^Air_Transition, soldier: ^sim.Soldier, tune:
     }
 }
 
+// Recoil is a short local impulse over the pose currently being rendered.
+// The gameplay animation ID and timing remain unchanged.
 visual_soldier_pose :: proc(animations: ^res.Animations, clips: ^res.Air_Animations, soldier: ^sim.Soldier, pos: utils.Vec2, tick: u32, state: ^Air_Transition = nil, tune: ^res.Air_Tuning = nil) -> sim.Joints {
+    if !soldier.active || soldier.vitals.dead do return visual_soldier_pose_base(animations, clips, soldier, pos, tick, state, tune)
+    id := soldier.pose.body.id
+    strength: f32
+    reference: res.Animation_Id
+    #partial switch id {
+    case .Recoil: strength, reference = 1.35, .Stand if soldier.controls.stance == .Stand else .Aim
+    case .Small_Recoil: strength, reference = 0.8, .Stand if soldier.controls.stance == .Stand else .Aim
+    case .Aim_Recoil: strength, reference = 0.8, .Aim
+    case .Hands_Up_Recoil: strength, reference = 0.8, .Hands_Up_Aim
+    case:
+        joints := visual_soldier_pose_base(animations, clips, soldier, pos, tick, state, tune)
+        if soldier.controls.stance == .Prone && state != nil && state.prone_recoil > 0.001 do return recoil_arm_impulse(joints,soldier,state.prone_recoil)
+        return joints
+    }
+    base_soldier := soldier^
+    base_soldier.pose.body.id = reference
+    // The crouch state machine returns to these exact aiming frames after a
+    // recoil. Matching them avoids a large arm jump on every repeated shot.
+    base_soldier.pose.body.frame = 11 if id == .Hands_Up_Recoil else 6 if id == .Aim_Recoil || (soldier.controls.stance == .Crouch && reference == .Aim) else 1
+    joints := visual_soldier_pose_base(animations, clips, &base_soldier, pos, tick, state, tune)
+    duration := min(8, animations[id].frame_count)
+    phase := clamp(f32(soldier.pose.body.frame-1)/f32(max(1,duration-1)),0,1)
+    pulse := f32(math.sin(math.PI*f64(phase)))*(1-0.35*phase)*strength
+    if pulse <= 0 do return joints
+    return recoil_arm_impulse(joints,soldier,pulse)
+}
+
+recoil_arm_impulse :: proc(joints: sim.Joints, soldier: ^sim.Soldier, pulse: f32) -> (pose: sim.Joints) {
+    pose = joints
+    aim := soldier.controls.aim-joints[14]
+    direction := utils.normalize(aim)
+    if utils.length(aim) < 1e-4 do direction = {f32(soldier.body.direction),0}
+    side: f32 = 1 if direction.x >= 0 else -1
+    lift := utils.Vec2{direction.y*side,-direction.x*side}
+    impulse := (-direction+lift*0.35)*pulse
+    for i in ([2]int{12,13}) do pose[i] += impulse*0.45
+    for i in ([4]int{14,15,18,19}) do pose[i] += impulse
+    return
+}
+
+visual_soldier_pose_base :: proc(animations: ^res.Animations, clips: ^res.Air_Animations, soldier: ^sim.Soldier, pos: utils.Vec2, tick: u32, state: ^Air_Transition = nil, tune: ^res.Air_Tuning = nil) -> sim.Joints {
     if clips == nil || !soldier.active || soldier.vitals.dead || soldier.controls.stance != .Stand {
         return sim.soldier_pose(animations, soldier, pos)
     }
@@ -112,7 +161,8 @@ visual_soldier_pose :: proc(animations: ^res.Animations, clips: ^res.Air_Animati
     if strength == 0 && (state == nil || !state.legacy_source) do return sim.soldier_pose(animations, soldier, pos)
     body: res.Animation_Frame
     body_override: ^res.Animation_Frame
-    // Aim is applied after composition. Weapon actions keep their authored upper body.
+    // Aim is applied after composition. Other weapon actions keep their
+    // authored upper body; the wrapper above handles recoil on every stance.
     #partial switch soldier.pose.body.id {
     case .Stand, .Aim, .Hands_Up_Aim:
         original := res.animation_frame(&animations[soldier.pose.body.id], soldier.pose.body.frame)
@@ -123,3 +173,4 @@ visual_soldier_pose :: proc(animations: ^res.Animations, clips: ^res.Air_Animati
     }
     return sim.soldier_pose(animations, soldier, pos, &legs, body_override)
 }
+

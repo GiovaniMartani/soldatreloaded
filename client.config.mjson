@@ -1,0 +1,294 @@
+// Soldat Reloaded's settings: your soldier, the window and the effects, the sound, the
+// server to join, Offline Play, the radio's calls, your mutes and your keys.
+//
+// The game writes this file whole as it closes, with what the menus changed: each setting
+// keeps the comment above it, but a comment of your own doesn't last. A setting left out
+// keeps its default. A file that can't be read is left as it is, and the game plays by
+// the defaults.
+
+// your soldier: your name, your look, your loadout
+player: {
+  // your name
+  name: "Major"
+  // male, female, waifu, rat or furry
+  gostek: "male"
+  // the shirt's colour, RRGGBB
+  shirt: "304289"
+  // the pants' colour, RRGGBB
+  pants: "FF0000"
+  // the skin's colour, RRGGBB
+  skin: "E6B478"
+  // the hair's colour, RRGGBB
+  hair: "000000"
+  // the jet flame's colour, RRGGBB
+  jet: "00008B"
+  // army; the male's dreadlocks, punk, mr_t or normal; the waifu's fringe or bob; mullet, wolfcut, baldcut, afro or emo. The rat and the furry wear only army, dreadlocks, punk, mr_t, mullet or wolfcut.
+  hair_style: "dreadlocks"
+  // none; the male's helmet or hat; the waifu's own; or backwards_cap. The rat and the furry wear none.
+  head_style: "none"
+  // none or sunglasses
+  eyewear: "none"
+  // none, dog_tags or gold_chain
+  chain_style: "none"
+  // the secondary each round begins with: ussocom, knife, chainsaw or law. The primary is picked anew each round, in the weapons menu.
+  secondary_weapon: "knife"
+}
+
+controls: {
+  // the mouse's speed
+  sensitivity: 1
+  // jump and crouch held together (w+s) throw the flag too, as older versions did
+  legacy_flag_throw: true
+}
+
+// the window, and what is drawn
+graphics: {
+  // the mods the game looks and sounds like, over Classic (mods/classic/), the top first: each a .smod or a folder of mods/, by its name. A file is the first of them's that has it, else Classic's. Empty for Classic alone. Chosen on the Mods page, which uses them at once.
+  mods: []
+  // the resolution's width: windowed, the window's; fullscreen, the world is drawn at it and scaled to the screen
+  screen_width: 1600
+  // the resolution's height
+  screen_height: 900
+  // windowed, or fullscreen: a window without borders over the whole screen
+  window_mode: "windowed"
+  // how the world fits the screen where their shapes differ (a screen wider than 16:9 or narrower than 5:4, or a fullscreen resolution of another shape than the screen): letterbox, between black bars, as Soldat 1 shows it; or zoom, filling the screen, zoomed in on a wide one to show no more across than 16:9 does, a little less above and below
+  screen_fit: "letterbox"
+  // wait for the display's refresh
+  vsync: false
+  // draw at most max_fps frames a second; false draws them as fast as they come
+  fps_limit: true
+  // the frames drawn a second at most, while fps_limit is on
+  max_fps: 500
+  // the scenery behind the map; false leaves it out, the middle and front scenery stay
+  scenery: true
+  // the streaks behind the bullets, grenades and rockets
+  trails: true
+  // the map's polygons with plain edges, without the edge texture along their outsides
+  smooth_polygons: false
+  // the map's weather: its rain, sandstorm or snow, and the wind
+  weather: true
+  // the sky in forced_sky_top and forced_sky_bottom on every map instead of the map's own
+  force_sky: false
+  // the forced sky's colour at the top, RRGGBB
+  forced_sky_top: "000000"
+  // the forced sky's colour at the bottom, RRGGBB
+  forced_sky_bottom: "000000"
+  // the grenades in this colour, RRGGBB, flat and solid; empty for their own art
+  grenade_color: ""
+  // every soldier drawn as Soldat 1's, the male, whatever style its player picked (the female, rat, furry or waifu), a waifu's hair and headgear as his nearest: so a mod made for Soldat 1 looks the same on everyone
+  original_soldiers: false
+  // draw the original Soldat animations instead of optional airborne POA blends
+  legacy_animations: false
+  // each soldier's hit circles drawn over it, the ones that decide whether a shot hits: green the legs', yellow the chest's, red the head's, as the original counts them; the dashed ring a grenade's, a pixel wider
+  hitboxes: false
+  // the aiming crosshair's colour, RRGGBB
+  crosshair_color: "FFFFFF"
+  // the aiming crosshair's size, percent
+  crosshair_size: 100
+  // the menu cursor's colour, RRGGBB
+  cursor_color: "FFFFFF"
+  // the menu cursor's size, percent
+  cursor_size: 100
+  // the camera follows a Barrett shot fired scoped, until you stand up
+  track_shot: true
+  // others' shots in view shake the camera too, not only yours (cl_screenshake)
+  screen_shake: false
+  // others' minigun shots in view shake the camera, though screen_shake is off: the hail of one coming is felt
+  minigun_shake: false
+}
+
+// what the HUD shows
+interface: {
+  // the minimap
+  minimap: false
+  // the time left in the round, and where: none, top_center, top_right (in a row left of the frame rate and the line's numbers), or both
+  time_left_position: "none"
+  // your local time, in the top right, in a row left of the frame rate and the line's numbers
+  local_time: false
+  // the time left's colour, and the local time's, RRGGBB
+  time_color: "AAA0C8"
+  // the frame rate, in the top right
+  show_fps: false
+  // your ping, under it
+  show_ping: true
+  // the share of the server's snapshots lost over the last second
+  show_loss: false
+  // how much the round trip varies
+  show_jitter: false
+  // the frame rate's and the line's numbers' colour, RRGGBB
+  stats_color: "EFAAC8"
+  // teammates' names at the screen's edge when out of view (everyone's, spectating)
+  player_names: true
+  // teammates' names by them always, not only at the screen's edge when out of view (with player_names)
+  team_names: false
+  // over a player typing: off, dots (the original's) or typing, the word
+  typing: "dots"
+  // the typing indicator's size, percent, 50 to 200
+  typing_size: 100
+  // the kill log's lines, two a kill, 0 to 50; 0 shows none
+  kill_log_length: 15
+  // where the kill log is: top_right (the original's), lower_right, or top_left, under the chat
+  kill_log_position: "top_right"
+  // how many console lines the HUD shows
+  console_lines: 6
+  // Playing Soldat Reloaded on your Discord profile, with the map and the server, while the Discord app runs here
+  discord: true
+}
+
+sound: {
+  // 0 to 100
+  volume: 50
+  // a far shot or blast also plays its distant sound
+  battle_effects: false
+  // a blast next to you rings your ears and muffles the rest for a few seconds
+  explosion_effects: false
+}
+
+// the server to join, the lists to ask, and how the others are shown
+network: {
+  // the server the main menu joins, host:port
+  server: "127.0.0.1:23073"
+  // the password the main menu joins with; empty for none
+  password: ""
+  // the lobby the server browser asks for its list
+  lobby: "https://sr-lobby.fly.dev"
+  // the mods' catalogue the Mods page lists, a mods.json
+  mods_index: "https://github.com/soldatreloaded/soldatreloaded-mods/releases/download/index/mods.json"
+  // milliseconds a correction of another player is smoothed over; 0 snaps
+  smooth: 100
+  // ticks the others are shown behind the newest snapshot, at least, so jitter doesn't show; raised by itself while snapshots come late
+  interp: 0
+}
+
+demos: {
+  // a demo of every round joined, into demos/
+  record_rounds: false
+}
+
+// a game against bots on this machine, alone
+offline: {
+  // minutes a round lasts
+  time_limit: 15
+  // the captures that win a round
+  capture_limit: 10
+  // seconds a soldier waits at least to be placed again after a death; with more players than seconds, the dead come back together, in waves two seconds apart
+  respawn_time: 2
+  // the grenades a soldier carries at most, and is placed with
+  max_grenades: 2
+  // the bots lead every shot as the game will fly it, at the head, the chest or the legs; false for the original's aim, a guess spread by each bot's accuracy
+  aimbot_bots: false
+  // with aimbot_bots, the percent of shots a bot of typical accuracy throws wide on purpose; a sharper bot fewer, a sloppier more, by its profile and the difficulty; 0 none
+  aimbot_miss_chance: 5
+  // the bots on each team, how well they play, whether they talk
+  bots: {
+    // bots on alpha
+    alpha: 0
+    // bots on bravo
+    bravo: 0
+    // 300 stupid, 200 poor, 100 normal, 50 hard, 10 impossible
+    difficulty: 100
+    // whether the bots talk
+    chat: true
+  }
+  // the rotation, played in turn; none plays the last map again
+  maps: []
+}
+
+// the radio menu's calls, and the places each can name
+radio: {
+  // the first call: its name in the menu, and the three places it can name
+  call_1: {
+    name: "Enemy flagger"
+    places: [
+      "up!"
+      "middle!"
+      "down!"
+    ]
+  }
+  // the second
+  call_2: {
+    name: "Friendly flagger"
+    places: [
+      "up!"
+      "middle!"
+      "down!"
+    ]
+  }
+  // the third
+  call_3: {
+    name: "Enemy spotted"
+    places: [
+      "up!"
+      "middle!"
+      "down!"
+    ]
+  }
+  // with the weapons menu and the radio both open, the number keys pick a weapon; off, a radio call
+  weapons_first: true
+  // opening the weapons menu closes the radio
+  close_on_weapons: false
+}
+
+// the chat kept off your screen: kinds of it, and players by name
+mutes: {
+  // everyone's chat
+  everyone: false
+  // your team's
+  team: false
+  // the other team's
+  enemies: false
+  // the spectators', their taunts too
+  spectators: false
+  // these players', by name in any case, until unmuted
+  players: []
+}
+
+// your keys: a key to a command; an empty command lets one of the game's own go (client_config_bind)
+binds: {
+  "a": "+left"
+  "alt+a": "say Nice one!"
+  "alt+c": "say_team Flag carrier down!"
+  "alt+d": "say Thanks!"
+  "alt+e": "say_team Enemy at our base!"
+  "alt+f": "say Damn!"
+  "alt+g": "say Hi!"
+  "alt+h": "say Bye!"
+  "alt+q": "say_team Cover me!"
+  "alt+r": "say_team Defend the flag!"
+  "alt+s": "say Sorry!"
+  "alt+t": "say_team Attack!"
+  "alt+w": "say_team Follow me!"
+  "alt+x": "say_team Got the flag!"
+  "alt+z": "say_team Help!"
+  "d": "+right"
+  "e": "+flagthrow"
+  "escape": "escmenu"
+  "f": "+drop"
+  "f1": "fragsmenu"
+  "f10": "togglerecord"
+  "f11": "say /no"
+  "f12": "say /yes"
+  "f2": "statsmenu"
+  "f3": "toggle ui_minimap"
+  "f4": "screenshot"
+  "f6": "demo_pause"
+  "f8": "demo_fast"
+  "f9": "togglewindow"
+  "leftarrow": "demo_tick_r -600"
+  "m": "teammenu"
+  "mouse1": "+fire"
+  "mouse2": "+jet"
+  "mouse3": "+emotes"
+  "q": "+change"
+  "r": "+reload"
+  "rightarrow": "demo_tick_r 600"
+  "s": "+crouch"
+  "slash": "cmd"
+  "space": "+throw"
+  "t": "chat"
+  "tab": "weaponsmenu"
+  "v": "+radio"
+  "w": "+jump"
+  "x": "+prone"
+  "y": "teamchat"
+}
